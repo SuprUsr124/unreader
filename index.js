@@ -18,7 +18,7 @@ async function initDatabase() {
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            is_banned BOOLEAN DEFAULT FALSE
+            timeout_until BIGINT DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS messages (
             id SERIAL PRIMARY KEY, 
@@ -53,6 +53,17 @@ function isMasterAdmin(name) {
   return name === 'augustinejames' || name === 'tockdev';
 }
 
+// Broadcaster sync routine for streaming active participant rosters
+function broadcastOnlineRoster() {
+    const onlineUsernames = Array.from(activeClients.keys());
+    const payload = JSON.stringify({ type: 'roster_update', users: onlineUsernames });
+    activeClients.forEach(function(clientSocket) {
+        if (clientSocket.readyState === WebSocket.OPEN) {
+            clientSocket.send(payload);
+        }
+    });
+}
+
 app.get('/dm-contacts', async (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
@@ -70,7 +81,7 @@ app.get('/dm-contacts', async (req, res) => {
             ) AS contacts WHERE username != $1;
         `, [me]);
 
-        res.json(result.rows.map(row => row.username));
+        res.json(result.rows.map(function(row) { return row.username; }));
     } catch (err) {
         res.status(401).json({ error: 'Session expired' });
     }
@@ -93,15 +104,10 @@ app.post('/api/login', async (req, res) => {
     const { username, password } = req.body
     try {
         const result = await db.query('SELECT * FROM users WHERE username = $1;', [username])
-        const user = result.rows[0]
-        
+        const user = result.rows[0];
         if (!user || !(await bcrypt.compare(password, user.password_hash))) {
             return res.status(401).json({ error: 'Invalid credentials' })
         }
-        if (user.is_banned) {
-            return res.status(403).json({ error: 'Your account has been permanently banned.' })
-        }
-        
         const token = jwt.sign({ username }, JWT_SECRET)
         res.json({ token, username })
     } catch (err) {
@@ -112,139 +118,4 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/change-password', async (req, res) => {
     const authHeader = req.headers.authorization;
     const { password } = req.body;
-    if (!authHeader || !password) return res.status(401).json({ error: 'Invalid operation criteria' });
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const targetUser = decoded.username;
-
-        const freshHash = await bcrypt.hash(password, 10);
-        await db.query('UPDATE users SET password_hash = $1 WHERE username = $2;', [freshHash, targetUser]);
-        
-        res.json({ success: true });
-    } catch (err) {
-        res.status(401).json({ error: 'Session expired or mutation failed' });
-    }
-});
-
-app.get('/history', async (req, res) => {
-    const offset = parseInt(req.query.index ?? '0', 10) * 10
-    try {
-        const result = await db.query('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 10 OFFSET $1;', [offset])
-        res.json(result.rows.reverse()) 
-    } catch (err) {
-        res.status(500).json({ error: 'Database history error.' })
-    }
-})
-
-app.get('/dm-history', async (req, res) => {
-    const authHeader = req.headers.authorization
-    const target = req.query.target
-    if (!authHeader || !target) return res.status(401).json({ error: 'Unauthorized' })
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET)
-        const me = decoded.username
-        const result = await db.query(`
-            SELECT * FROM dms WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
-            ORDER BY timestamp DESC LIMIT 30;
-        `, [me, target])
-        res.json(result.rows.reverse())
-    } catch (err) {
-        res.status(401).json({ error: 'Session expired' })
-    }
-})
-
-const PORT = process.env.PORT || 3000
-const server = app.listen(PORT, () => console.log(`HTTP operational on port ${PORT}`))
-const wss = new WebSocketServer({ server })
-
-wss.on('connection', (ws) => {
-    let authenticatedUser = null
-
-    ws.on('message', async (msg) => {
-        try {
-            const data = JSON.parse(msg)
-
-            if (data.type === 'auth') {
-                const decoded = jwt.verify(data.token, JWT_SECRET)
-                authenticatedUser = decoded.username
-                
-                // Confirm user isn't banned before mapping socket line
-                const checkUser = await db.query('SELECT is_banned FROM users WHERE username = $1;', [authenticatedUser]);
-                if (checkUser.rows[0] && checkUser.rows[0].is_banned) {
-                    ws.send(JSON.stringify({ type: 'terminated', reason: 'banned' }));
-                    ws.close();
-                    return;
-                }
-                
-                activeClients.set(authenticatedUser, ws)
-                return
-            }
-
-            if (!authenticatedUser) return;
-            const timestamp = Date.now()
-
-            // Administrative Rule Pipeline: Ban / Unban Engine
-            if ((data.type === 'mod_ban' || data.type === 'mod_unban') && isMasterAdmin(authenticatedUser)) {
-                if (isMasterAdmin(data.target)) return;
-                
-                const banStatus = (data.type === 'mod_ban');
-                await db.query('UPDATE users SET is_banned = $1 WHERE username = $2;', [banStatus, data.target]);
-                
-                if (banStatus) {
-                    const targetSocket = activeClients.get(data.target);
-                    if (targetSocket) {
-                        targetSocket.send(JSON.stringify({ type: 'terminated', reason: 'banned' }));
-                        targetSocket.close();
-                        activeClients.delete(data.target);
-                    }
-                }
-                return;
-            }
-
-            if (data.type === 'mod_delete' && isMasterAdmin(authenticatedUser)) {
-                if (data.channel === 'public') {
-                    await db.query('DELETE FROM messages WHERE id = $1;', [data.id]);
-                } else {
-                    await db.query('DELETE FROM dms WHERE id = $1;', [data.id]);
-                }
-                
-                const deletePayload = JSON.stringify({ type: 'msg_deleted', id: data.id });
-                wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(deletePayload) });
-                return;
-            }
-
-            if (data.type === 'typing') {
-                const targetSocket = activeClients.get(data.target)
-                if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
-                    targetSocket.send(JSON.stringify({ type: 'typing', sender: authenticatedUser }))
-                }
-                return;
-            }
-
-            if (data.type === 'public') {
-                const dbRes = await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3) RETURNING id;', [authenticatedUser, timestamp, data.content])
-                const insertedId = dbRes.rows[0].id;
-                
-                const payload = JSON.stringify({ id: insertedId, type: 'public', username: authenticatedUser, timestamp, content: data.content })
-                wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(payload) })
-            }
-
-            if (data.type === 'dm') {
-                const dbRes = await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4) RETURNING id;', [authenticatedUser, data.target, timestamp, data.content])
-                const insertedId = dbRes.rows[0].id;
-                
-                const payload = JSON.stringify({ id: insertedId, type: 'dm', sender: authenticatedUser, receiver: data.target, timestamp, content: data.content })
-                ws.send(payload)
-                const targetSocket = activeClients.get(data.target)
-                if (targetSocket && targetSocket.readyState === WebSocket.OPEN) targetSocket.send(payload)
-            }
-        } catch (err) {
-            console.error('Transmission fault:', err)
-        }
-    })
-
-    ws.on('close', () => { if (authenticatedUser) activeClients.delete(authenticatedUser) })
-})
+    if (!authHeader || !password) return res.status(401
