@@ -1,9 +1,3 @@
-<!-- ⚠️ CONFIGURATION TARGET: REPLACE BOTH URLS BELOW WITH YOUR RENDER APP ADDRESS -->
-<script type="text/javascript">
-  const BACKEND_URL = "https://onrender.com"; 
-  const WS_URL = "wss://://onrender.com";
-</script>
-
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://w3.org">
 <html lang="en">
 <head>
@@ -64,18 +58,17 @@
     .my-msg { float: right; background-color: #e2f0cb; text-align: left; }
     .other-msg { float: left; background-color: white; }
 
-    /* 👑 EXCLUSIVE STYLING RULES FOR ADMIN COHORT PROFILES (augustinejames & tockdev) */
+    /* 👑 EXCLUSIVE SYSTEM OPERATOR SHADOW PULSE CLASSES FOR BOTH ADMIN CHANNELS */
     .boss-msg {
       float: right;
-      background: linear-gradient(135deg, #ffe066 0%, #ff80df 100%) !important;
+      background: #ffe066 !important;
       border: 4px solid black !important;
-      box-shadow: 4px 4px 0px #00ffff, 8px 8px 0px #000000 !important;
+      box-shadow: 4px 4px 0px #00ffff, 6px 6px 0px #000000 !important;
       animation: neonPulse 2s infinite alternate;
     }
     .boss-meta {
       color: #7a00cc !important;
-      font-weight: 900 !important;
-      letter-spacing: 0.5px;
+      font-weight: bold !important;
     }
     @keyframes neonPulse {
       0% { transform: translateY(0); }
@@ -87,12 +80,13 @@
       font-size: 10px; cursor: pointer; background: white; padding: 0 4px; font-weight: bold;
     }
 
-    /* Sidebar Mod/Setting Panels */
-    #mod-sidebar-panel, #settings-sidebar-panel { margin: 2px; }
-    .sidebar-panel-box { margin: 4px; padding: 6px; border: 2px dashed black; background: #eee; }
-    #mod-box-container { border-color: red; background: #ffcccc; }
-    .panel-input { width: 90%; padding: 4px; margin-bottom: 4px; font-family: monospace; font-size: 11px; }
-    .panel-btn { width: 95%; font-family: monospace; font-size: 11px; font-weight: bold; background: black; color: white; cursor: pointer; padding: 4px 0; border: none; }
+    #mod-box-container, #settings-box-container {
+      margin: 4px; padding: 6px; background: #ffcccc; border: 2px dashed red;
+    }
+    #settings-box-container { background: #e0e0e0; border: 2px solid black; }
+    .mod-input, .settings-input { width: 90%; padding: 4px; margin-bottom: 4px; font-family: monospace; font-size: 11px; }
+    .mod-btn, .settings-btn { width: 95%; font-family: monospace; font-size: 11px; font-weight: bold; background: black; color: white; cursor: pointer; padding: 4px 0; border: none; }
+    .settings-btn { background: #333; }
 
     #auth-screen { position: fixed; top:0; left:0; width:100%; height:100%; background: #222; display: block; z-index: 100; text-align: center; padding-top: 100px; }
     .auth-box { padding: 30px; width: 300px; margin: 0 auto; background: white; }
@@ -130,21 +124,19 @@
         <input class="paper" type="text" id="dm-target-input" placeholder="+ Type user & press Enter..." autocomplete="off">
         <div id="dm-list"></div>
         
-        <!-- Account Settings Component -->
-        <div id="settings-sidebar-panel">
-          <div class="panel-header" style="border-top: 2px solid black;">Settings</div>
-          <div class="sidebar-panel-box">
-            <input type="password" id="settings-new-pass" class="paper panel-input" placeholder="New Password...">
-            <button id="settings-pass-btn" class="panel-btn">CHANGE PASSWORD</button>
-          </div>
+        <!-- User Settings Area (Change Password) -->
+        <div class="panel-header" style="border-top: 2px solid black;">Account Settings</div>
+        <div id="settings-box-container">
+          <input type="password" id="settings-new-pass" class="paper settings-input" placeholder="New Password...">
+          <button id="settings-save-btn" class="settings-btn">UPDATE PASSWORD</button>
         </div>
 
         <!-- Terminal-Style Mod Box Component -->
         <div id="mod-sidebar-panel" style="display: none;">
           <div class="panel-header" style="border-top: 2px dashed red; color: red;">SYS_OP PANEL</div>
-          <div id="mod-box-container" class="sidebar-panel-box">
-            <input type="text" id="mod-target-user" class="paper panel-input" placeholder="Target Username..." autocomplete="off">
-            <button id="mod-kick-btn" class="panel-btn" style="background: red;">TERMINATE USER</button>
+          <div id="mod-box-container">
+            <input type="text" id="mod-target-user" class="paper mod-input" placeholder="Target Username..." autocomplete="off">
+            <button id="mod-kick-btn" class="mod-btn">TERMINATE USER SESSION</button>
           </div>
         </div>
       </td>
@@ -160,6 +152,9 @@
   </table>
 
   <script type="text/javascript">
+    var BACKEND_URL = "https://unreader.onrender.com"; 
+    var WS_URL = "wss://unreader.onrender.com";
+
     var token = localStorage.getItem('token');
     var myUsername = localStorage.getItem('username');
     var currentMode = 'public';
@@ -205,9 +200,9 @@
     };
 
     // Change Password Execution Block
-    document.getElementById('settings-pass-btn').onclick = function() {
-      var newPass = document.getElementById('settings-new-pass').value;
-      if(!newPass || newPass.length < 4) return alert('Password must be at least 4 characters long.');
+    document.getElementById('settings-save-btn').onclick = function() {
+      var newPassword = document.getElementById('settings-new-pass').value;
+      if (!newPassword) return alert('Please input a fresh password string');
 
       var xhr = new XMLHttpRequest();
       xhr.open('POST', BACKEND_URL + '/api/change-password', true);
@@ -216,13 +211,13 @@
       xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) {
           var data = JSON.parse(xhr.responseText);
-          if(data.error) return alert(data.error);
+          if (data.error) return alert(data.error);
           
           document.getElementById('settings-new-pass').value = '';
-          alert('Password successfully re-configured!');
+          alert('Password profile systematically modified successfully!');
         }
       };
-      xhr.send(JSON.stringify({ password: newPass }));
+      xhr.send(JSON.stringify({ password: newPassword }));
     };
 
     document.getElementById('logout-btn').onclick = function() {
@@ -314,95 +309,7 @@
       xhr.onreadystatechange = function() {
         if (xhr.readyState === 4 && xhr.status === 200) {
           var contacts = JSON.parse(xhr.responseText);
-          for (var i = 0; i < contacts.length; i++) {
-            ensureDMNavOption(contacts[i]);
-          }
-        }
-      };
-      xhr.send();
-    }
-
-    function showTypingState(text) {
-        var indicator = document.getElementById('typing-indicator');
-        indicator.textContent = text;
-        clearTimeout(typingClearTimer);
-        typingClearTimer = setTimeout(clearTypingIndicator, 3000);
-    }
-    
-    function clearTypingIndicator() {
-        document.getElementById('typing-indicator').textContent = '';
-    }
-
-    function ensureDMNavOption(username) {
-      if (document.getElementById('nav-dm-' + username) || username === myUsername) return;
-      var targetList = document.getElementById('dm-list');
-      var item = document.createElement('div');
-      item.className = 'nav-item';
-      item.id = 'nav-dm-' + username;
-      item.textContent = '💬 ' + username;
-      item.onclick = function() { switchChannel('dm', username); };
-      targetList.appendChild(item);
-    }
-
-    document.getElementById('dm-target-input').onkeypress = function(e) {
-      var key = e.keyCode || e.which;
-      if (key === 13) {
-        var target = e.target.value.trim();
-        if(!target || target === myUsername) return;
-        ensureDMNavOption(target);
-        switchChannel('dm', target);
-        e.target.value = '';
-      }
-    };
-
-    function switchChannel(mode, target) {
-      if(!target) target = '';
-      currentMode = mode;
-      currentDMTarget = target;
-      clearTypingIndicator();
-      
-      var navItems = document.getElementById('sidebar-cell').getElementsByTagName('div');
-      for (var i = 0; i < navItems.length; i++) {
-        if(navItems[i].className.indexOf('nav-item') !== -1) {
-          navItems[i].className = 'nav-item';
-        }
-      }
-      
-      if(mode === 'public') {
-        document.getElementById('nav-public').className = 'nav-item nav-item-active';
-      } else {
-        var activeTab = document.getElementById('nav-dm-' + target);
-        if (activeTab) activeTab.className = 'nav-item nav-item-active';
-      }
-      document.getElementById('chat-scroll-wrapper').innerHTML = '';
-      loadHistory();
-    }
-
-    function appendMessage(data) {
-      var chatWrapper = document.getElementById('chat-scroll-wrapper');
-      var containerDiv = document.createElement('div');
-      containerDiv.className = 'message-container';
-      
-      var msgDiv = document.createElement('div');
-      msgDiv.id = 'msg-id-' + data.id;
-      var isMe = data.username === myUsername;
-      var isBoss = isMasterAdmin(data.username);
-      
-      var messageStyleClass = 'message paper ';
-      if (isBoss) {
-          messageStyleClass += 'boss-msg';
-      } else if (isMe) {
-          messageStyleClass += 'my-msg';
-      } else {
-          messageStyleClass += 'other-msg';
-      }
-      msgDiv.className = messageStyleClass;
-      
-      var timeStr = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      var nameDisplay = isBoss ? '👑 ' + data.username + ' [SYS_OP]' : data.username;
-      var metaStyleClass = isBoss ? 'message-meta boss-meta' : 'message-meta';
-
-      msgDiv.innerHTML = '<div class="' + metaStyleClass + '">' + nameDisplay + ' • ' + timeStr + '</div><div class="message-text"></div>';
+          for (var i = 0; i ' + nameDisplay + ' • ' + timeStr + '</div><div class="message-text"></div>';
       
       if (isMasterAdmin(myUsername)) {
         var delBtn = document.createElement('button');
