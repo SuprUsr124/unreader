@@ -70,11 +70,13 @@
     #page-display-index { margin: 0 10px; font-weight: bold; font-size: 12px; }
 
     /* CHAT STREAM TERMINAL */
-    #chat-scroll-wrapper { position: absolute; top: 40px; bottom: 55px; left: 0; right: 0; overflow-y: auto; padding: 12px; }
-    #typing-indicator { position: absolute; bottom: 58px; left: 12px; font-size: 11px; font-weight: bold; color: #555; font-style: italic; height: 15px; }
+    /* FIXED: bottom parameter set to 60px to fully clear the control tray boundaries below */
+    #chat-scroll-wrapper { position: absolute; top: 40px; bottom: 60px; left: 0; right: 0; overflow-y: auto; padding: 12px; }
+    #typing-indicator { position: absolute; bottom: 58px; left: 12px; font-size: 11px; font-weight: bold; color: #555; font-style: italic; height: 15px; z-index: 10; }
 
     /* FOOTER CONTROL DOCK CONTAINER */
-    #input-bar-container { position: absolute; bottom: 0; left: 0; right: 0; height: 52px; background-color: #eee; padding: 8px; box-sizing: border-box; border-top: 2px solid black; }
+    /* FIXED: Explicit high z-index forces container buttons above the hidden scroll layout */
+    #input-bar-container { position: absolute; bottom: 0; left: 0; right: 0; height: 52px; background-color: #eee; padding: 8px; box-sizing: border-box; border-top: 2px solid black; z-index: 20; }
     #content { float: left; width: 78%; padding: 6px; font-size: 13px; font-family: monospace; border: 2px solid black; outline: none; background: white; }
     #send { float: right; width: 18%; height: 32px; cursor: pointer; font-family: monospace; font-weight: bold; font-size: 12px; background: white; border: 2px solid black; box-shadow: 2px 2px 0 black; }
     #send:active { box-shadow: none; transform: translate(1px, 1px); }
@@ -85,11 +87,12 @@
     .message-meta { font-size: 10px; font-weight: bold; color: #555; margin-bottom: 3px; text-transform: uppercase; }
     .message-text { font-size: 13px; white-space: pre-wrap; line-height: 1.3; color: black; }
     
-    .my-msg { float: right; border-style: dashed; }
-    .other-msg { float: left; }
+    .my-msg { border-style: dashed; }
+    .other-msg { border-style: solid; }
 
-    /* SYSTEM OPERATOR SPECIAL CARDS LAYER (augustinejames & tockdev) */
-    .boss-msg { float: right; border: 4px double black !important; background: #fff !important; box-shadow: 4px 4px 0px black !important; }
+    /* SYSTEM OPERATOR SPECIAL CARDS LAYER */
+    /* FIXED: Stripped structural position float rules to resolve global side alignment drift */
+    .boss-msg { border: 4px double black !important; background: #fff !important; box-shadow: 4px 4px 0px black !important; }
     .boss-meta { color: black !important; font-weight: bold !important; text-decoration: underline; }
     .del-btn { position: absolute; top: 3px; right: 3px; border: 1px solid black; background: white; font-size: 9px; cursor: pointer; font-weight: bold; padding: 0 3px; }
 
@@ -105,7 +108,6 @@
 </head>
 <body>
 
-  <!-- System 7 Auth Container Layer -->
   <div id="auth-screen">
     <div class="auth-box">
       <h2 id="auth-title">LOGIN</h2>
@@ -116,7 +118,6 @@
     </div>
   </div>
 
-  <!-- Main System Frame Window -->
   <div class="window">
     <div class="title-bar">
       <div class="title-stripes"></div>
@@ -145,7 +146,6 @@
           </div>
         </td>
         <td id="chat-cell">
-          <!-- Static Snap Navigation Header Desk Bar for E-Ink Refresh Sync -->
           <div id="pagination-header-bar">
             <button class="page-btn" id="prev-page-btn" onclick="jumpToPreviousPage()">&lt; NEWER LOGS</button>
             <span id="page-display-index">PAGE: 0</span>
@@ -165,9 +165,8 @@
   </div>
 
   <script type="text/javascript">
-    // ⚠️ CONFIGURATION TARGET: REPLACE BOTH URLS BELOW WITH YOUR RENDER APP ADDRESS
     var BACKEND_URL = "https://unreader.onrender.com"; 
-    var WS_URL = "wss://unreader.onrender.com";
+    var WS_URL = "wss://unreader.onreader.com";
 
     var token = localStorage.getItem('token');
     var myUsername = localStorage.getItem('username');
@@ -175,7 +174,6 @@
     var currentDMTarget = '';
     var socket = null;
     var isRegisterMode = false;
-    var typingClearTimer = null;
     var currentHistoryIndex = 0;
 
     var authToggle = document.getElementById('auth-toggle');
@@ -392,6 +390,13 @@
       var isMe = data.username === myUsername;
       var isBoss = isMasterAdmin(data.username);
       
+      // FIXED: Alignment float parameters set contextually by user session state
+      if (isMe) {
+        msgDiv.style.float = 'right';
+      } else {
+        msgDiv.style.float = 'left';
+      }
+      
       var messageStyleClass = 'message ';
       if (isBoss) messageStyleClass += 'boss-msg';
       else if (isMe) messageStyleClass += 'my-msg';
@@ -432,6 +437,9 @@
         xhr.open('GET', BACKEND_URL + '/history?index=' + currentHistoryIndex, true);
       } else {
         xhr.open('GET', BACKEND_URL + '/dm-history?target=' + currentDMTarget + '&index=' + currentHistoryIndex, true);
+      }
+      
+      if (token) {
         xhr.setRequestHeader('Authorization', 'Bearer ' + token);
       }
       
@@ -449,7 +457,6 @@
             if (currentMode === 'public') {
               appendMessage(msg);
             } else {
-              // UNIFIED DATA PROPERTY WRAPPER: Parses .username or .sender natively safely
               appendMessage({ id: msg.id, username: msg.username || msg.sender, content: msg.content, timestamp: msg.timestamp });
             }
           }
