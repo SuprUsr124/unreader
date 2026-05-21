@@ -294,7 +294,6 @@ wss.on('connection', (ws, req) => {
       }
 
       if (data.type === 'mod_delete' || data.type === 'mod_restore') {
-<<<<<<< HEAD
         const targetTable = ALLOWED_CHANNELS[data.channel] || (data.channel === 'neighborhood_comment' ? 'neighborhood_comments' : null);
         if (!targetTable) {
           ws.send(JSON.stringify({ type: 'error_alert', message: 'Invalid channel structure.' }));
