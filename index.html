@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>un-reader BBS</title>
   <link rel="stylesheet" media="screen" href="https://fontlibrary.org//face/symbola" type="text/css"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
   <style type="text/css">
     :root {
       --bg-color: #ffffff;
@@ -215,11 +216,8 @@
 
     function parseMarkup(text) {
       if (!text) return "";
-      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                 .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-                 .replace(/\*(.*?)\*/g, "<strong>$1</strong>")
-                 .replace(/_(.*?)_/g, "<em>$1</em>")
-                 .replace(/`(.*?)`/g, "<code>$1</code>");
+      const escaped = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return marked.parse(escaped);
     }
 
     function formatTimeToken(unixTimestamp) {
