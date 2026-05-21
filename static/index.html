@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>un-reader</title>
   <style type="text/css">
-    /* Strict CSS2 Reset and Structure styling */
     html, body {
       margin: 0; padding: 0; overflow: hidden;
       height: 100%; width: 100%;
@@ -23,12 +22,11 @@
     #title-right { float: right; padding: 8px; }
     #logout-btn { cursor: pointer; padding: 2px 8px; font-family: monospace; font-size: 11px;}
     
-    /* CSS2 Table Layout Infrastructure Matrix */
     #workspace-table {
       width: 100%; height: 90%; border-collapse: collapse; table-layout: fixed;
     }
     #sidebar-cell {
-      width: 200px; background: #e6e6e6; border-right: 3px solid black;
+      width: 220px; background: #e6e6e6; border-right: 3px solid black;
       vertical-align: top; padding: 0;
     }
     #chat-cell {
@@ -38,7 +36,7 @@
     .panel-header { font-weight: bold; padding: 8px; text-transform: uppercase; border-bottom: 2px solid black; background: white; font-size: 12px; }
     .nav-item { padding: 10px; cursor: pointer; border-bottom: 1px solid black; font-size: 13px; background: white; margin: 2px; }
     .nav-item-active { background-color: black !important; color: white !important; }
-    #dm-target-input { margin: 4px; padding: 6px; font-family: monospace; font-size: 12px; outline: none; width: 180px; }
+    #dm-target-input { margin: 4px; padding: 6px; font-family: monospace; font-size: 12px; outline: none; width: 190px; }
 
     #chat-scroll-wrapper {
       position: absolute; top: 0; bottom: 60px; left: 0; right: 0; overflow-y: scroll; padding: 15px;
@@ -53,14 +51,13 @@
     #send { float: right; width: 20%; height: 36px; cursor: pointer; font-family: monospace; font-weight: bold; font-size: 14px; background: white; }
 
     .message-container { width: 100%; margin-bottom: 12px; clear: both; }
-    .message { border: 2px solid black; padding: 8px 12px; max-width: 70%; width: auto; box-shadow: 2px 2px 0px black; }
+    .message { border: 2px solid black; padding: 8px 12px; max-width: 70%; width: auto; box-shadow: 2px 2px 0px black; position: relative; }
     .message-meta { font-size: 11px; font-weight: bold; color: #555; margin-bottom: 4px; }
     .message-text { font-size: 14px; white-space: pre-wrap; }
     
     .my-msg { float: right; background-color: #e2f0cb; text-align: left; }
     .other-msg { float: left; background-color: white; }
 
-    /* Pure CSS2 static styling definitions for augustinejames operator profile */
     .boss-msg {
       float: right;
       background-color: #ffe066 !important;
@@ -71,6 +68,17 @@
       color: #7a00cc !important;
       font-weight: bold !important;
     }
+
+    .del-btn {
+      position: absolute; top: 4px; right: 4px; color: red; border: 1px solid red;
+      font-size: 10px; cursor: pointer; background: white; padding: 0 4px; font-weight: bold;
+    }
+
+    #mod-box-container {
+      margin: 4px; padding: 6px; background: #ffcccc; border: 2px dashed red;
+    }
+    .mod-input { width: 90%; padding: 4px; margin-bottom: 4px; font-family: monospace; font-size: 11px; }
+    .mod-btn { width: 95%; font-family: monospace; font-size: 11px; font-weight: bold; background: black; color: white; cursor: pointer; padding: 4px 0; border: none; }
 
     #auth-screen { position: fixed; top:0; left:0; width:100%; height:100%; background: #222; display: block; z-index: 100; text-align: center; padding-top: 100px; }
     .auth-box { padding: 30px; width: 300px; margin: 0 auto; background: white; }
@@ -107,6 +115,15 @@
         <div class="panel-header" style="border-top: 2px solid black;">Direct Messages</div>
         <input class="paper" type="text" id="dm-target-input" placeholder="+ Type user & press Enter..." autocomplete="off">
         <div id="dm-list"></div>
+        
+        <!-- Streamlined Terminal-Style Mod Box Component -->
+        <div id="mod-sidebar-panel" style="display: none;">
+          <div class="panel-header" style="border-top: 2px dashed red; color: red;">SYS_OP PANEL</div>
+          <div id="mod-box-container">
+            <input type="text" id="mod-target-user" class="paper mod-input" placeholder="Target Username..." autocomplete="off">
+            <button id="mod-kick-btn" class="mod-btn">TERMINATE USER SESSION</button>
+          </div>
+        </div>
       </td>
       <td id="chat-cell">
         <div id="chat-scroll-wrapper"></div>
@@ -120,9 +137,8 @@
   </table>
 
   <script type="text/javascript">
-    // ⚠️ CONFIGURATION TARGET: CHANGE BOTH PARAMETERS TOWARDS YOUR OPERATIONAL PROFILES
-    var BACKEND_URL = "https://unreader.onrender.com"; 
-    var WS_URL = "wss://unreader.onrender.com";
+    var BACKEND_URL = "https://onrender.com"; 
+    var WS_URL = "wss://://onrender.com";
 
     var token = localStorage.getItem('token');
     var myUsername = localStorage.getItem('username');
@@ -139,6 +155,10 @@
       authToggle.textContent = isRegisterMode ? 'Already have an account? Login' : 'Need to create an account? Register';
     };
 
+    function isMasterAdmin(name) {
+      return name === 'augustinejames' || name === 'tockdev';
+    }
+
     document.getElementById('auth-submit').onclick = function() {
       var username = document.getElementById('auth-user').value.trim();
       var password = document.getElementById('auth-pass').value;
@@ -146,7 +166,6 @@
 
       var url = isRegisterMode ? '/api/register' : '/api/login';
       
-      // Native ES5 XMLHttpRequest Pipeline instantiation
       var xhr = new XMLHttpRequest();
       xhr.open('POST', BACKEND_URL + url, true);
       xhr.setRequestHeader('Content-Type', 'application/json');
@@ -174,6 +193,10 @@
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('user-display').textContent = '@' + myUsername;
       
+      if (isMasterAdmin(myUsername)) {
+        document.getElementById('mod-sidebar-panel').style.display = 'block';
+      }
+      
       socket = new WebSocket(WS_URL);
       
       socket.onopen = function() { socket.send(JSON.stringify({ type: 'auth', token: token })); };
@@ -181,25 +204,66 @@
       socket.onmessage = function(event) {
         var data = JSON.parse(event.data);
         
+        if (data.type === 'terminated') {
+          alert('Your session was terminated by an administrator.');
+          localStorage.clear();
+          window.location.reload();
+          return;
+        }
+
+        if (data.type === 'msg_deleted') {
+          var targetNode = document.getElementById('msg-id-' + data.id);
+          if (targetNode) {
+            targetNode.innerHTML = '<div class="message-meta">System</div><div class="message-text">[MESSAGE PURGED BY ROOT]</div>';
+          }
+          return;
+        }
+
         if (data.type === 'typing' && currentMode === 'dm' && currentDMTarget === data.sender) {
             showTypingState(data.sender + ' is typing...');
             return;
         }
 
         if (data.type === 'public' && currentMode === 'public') {
-          appendMessage({ username: data.username, content: data.content, timestamp: data.timestamp });
+          appendMessage({ id: data.id, username: data.username, content: data.content, timestamp: data.timestamp });
         } else if (data.type === 'dm') {
           var senderPartner = data.sender === myUsername ? data.receiver : data.sender;
           ensureDMNavOption(senderPartner);
           if (currentMode === 'dm' && currentDMTarget === senderPartner) {
             clearTypingIndicator();
-            appendMessage({ username: data.sender, content: data.content, timestamp: data.timestamp });
+            appendMessage({ id: data.id, username: data.sender, content: data.content, timestamp: data.timestamp });
           }
         }
       };
       
       loadDMContacts(); 
       loadHistory();
+    }
+
+    document.getElementById('mod-kick-btn').onclick = function() {
+      var target = document.getElementById('mod-target-user').value.trim();
+      if (!target) return alert('Enter a target user string');
+      if (isMasterAdmin(target)) return alert('Operation Aborted: Cannot terminate root profiles');
+      
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'mod_kick',
+          target: target
+        }));
+        document.getElementById('mod-target-user').value = '';
+        alert('Termination order broadcasted for: ' + target);
+      }
+    };
+
+    function triggerMsgDeletion(msgId) {
+      if (!isMasterAdmin(myUsername)) return;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'mod_delete',
+          id: msgId,
+          channel: currentMode
+        }));
+      }
     }
 
     function loadDMContacts() {
@@ -279,8 +343,9 @@
       containerDiv.className = 'message-container';
       
       var msgDiv = document.createElement('div');
+      msgDiv.id = 'msg-id-' + data.id;
       var isMe = data.username === myUsername;
-      var isBoss = data.username === 'augustinejames';
+      var isBoss = isMasterAdmin(data.username);
       
       var messageStyleClass = 'message paper ';
       if (isBoss) {
@@ -293,10 +358,19 @@
       msgDiv.className = messageStyleClass;
       
       var timeStr = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      var nameDisplay = isBoss ? '👑 augustinejames [SYS_OP]' : data.username;
+      var nameDisplay = isBoss ? '👑 ' + data.username + ' [SYS_OP]' : data.username;
       var metaStyleClass = isBoss ? 'message-meta boss-meta' : 'message-meta';
 
       msgDiv.innerHTML = '<div class="' + metaStyleClass + '">' + nameDisplay + ' • ' + timeStr + '</div><div class="message-text"></div>';
+      
+      if (isMasterAdmin(myUsername)) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'del-btn';
+        delBtn.textContent = 'X';
+        delBtn.onclick = function() { triggerMsgDeletion(data.id); };
+        msgDiv.appendChild(delBtn);
+      }
+
       msgDiv.querySelector('.message-text').textContent = data.content;
       
       containerDiv.appendChild(msgDiv);
@@ -321,7 +395,7 @@
             if (currentMode === 'public') {
               appendMessage(msg);
             } else {
-              appendMessage({ username: msg.sender, content: msg.content, timestamp: msg.timestamp });
+              appendMessage({ id: msg.id, username: msg.sender, content: msg.content, timestamp: msg.timestamp });
             }
           }
         }
