@@ -5,72 +5,60 @@ import jwt from 'jsonwebtoken'
 import pkg from 'pg'
 
 const { Pool } = pkg 
-const JWT_SECRET = process.env.JWT_SECRET || 'brutalist_secret_key_123'
-
-let connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/unreader';
-
-// FIX: If DATABASE_URL is just "localhost:5432", prepend the protocol
-if (connectionString && !connectionString.startsWith('postgresql://') && !connectionString.startsWith('postgres://')) {
-  console.log("Formatting DATABASE_URL: adding postgresql:// prefix");
-  connectionString = `postgresql://postgres:postgres@${connectionString}/unreader`;
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("CRITICAL SERVER CONFIGURATION ERROR: process.env.JWT_SECRET is completely missing.");
 }
 
-// Log masked connection string for debugging
-const maskedURI = connectionString.replace(/:([^:@]+)@/, ':****@');
-console.log(`Connecting to database at: ${maskedURI}`);
-
-const db = new Pool({ connectionString })
+const db = new Pool({ connectionString: process.env.DATABASE_URL })
 
 async function initDatabase() {
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, timeout_until BIGINT DEFAULT 0, is_banned BOOLEAN DEFAULT false
-      );
-      CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
-      );
-      CREATE TABLE IF NOT EXISTS dms (
-        id SERIAL PRIMARY KEY, sender TEXT NOT NULL, receiver TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
-      );
-      CREATE TABLE IF NOT EXISTS profiles (
-        username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE, bio TEXT DEFAULT 'Hello world.', location TEXT DEFAULT 'Cyberspace', avatar_emoji TEXT DEFAULT '👤'
-      );
-      CREATE TABLE IF NOT EXISTS topics (
-        id SERIAL PRIMARY KEY, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, username TEXT NOT NULL, timestamp TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS topic_messages (
-        id SERIAL PRIMARY KEY, topic_slug TEXT NOT NULL, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
-      );
-      CREATE TABLE IF NOT EXISTS neighborhood_posts (
-        id SERIAL PRIMARY KEY, username TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
-      );
-      CREATE TABLE IF NOT EXISTS neighborhood_comments (
-        id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL, username TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
-      );
-    `);
-    console.log("Database online. Timestamps configured as absolute String layout models.");
-  } catch (err) {
-    console.error("CRITICAL DATABASE ERROR: Could not initialize tables.");
-    console.error("Ensure the database exists and your DATABASE_URL is correct.");
-    throw err;
-  }
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, timeout_until BIGINT DEFAULT 0, is_banned BOOLEAN DEFAULT false
+    );
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
+    );
+    CREATE TABLE IF NOT EXISTS dms (
+      id SERIAL PRIMARY KEY, sender TEXT NOT NULL, receiver TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
+    );
+    CREATE TABLE IF NOT EXISTS profiles (
+      username TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE, bio TEXT DEFAULT 'Hello world.', location TEXT DEFAULT 'Cyberspace', avatar_emoji TEXT DEFAULT '👤'
+    );
+    CREATE TABLE IF NOT EXISTS topics (
+      id SERIAL PRIMARY KEY, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, username TEXT NOT NULL, timestamp TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS topic_messages (
+      id SERIAL PRIMARY KEY, topic_slug TEXT NOT NULL, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
+    );
+    CREATE TABLE IF NOT EXISTS neighborhood_posts (
+      id SERIAL PRIMARY KEY, username TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
+    );
+    CREATE TABLE IF NOT EXISTS neighborhood_comments (
+      id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL, username TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
+    );
+  `);
+  console.log("Database engine successfully connected.");
 }
-initDatabase().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+initDatabase().catch(err => console.error(err));
 
 const app = express()
-app.use(express.json())
 
+// CRITICAL CORS CORRECTION INTERCEPTOR: Executes before any subsequent parsing middleware
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); 
-  res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, *"); 
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  res.setHeader("Access-Control-Allow-Origin", "https://tock-dev.github.io");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Origin, Accept"); 
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   next();
-})
+});
+
+app.use(express.json())
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -89,19 +77,8 @@ function broadcastSystemUpdate(payloadObj) {
 }
 
 async function broadcastTopics() {
-  try {
-    const result = await db.query('SELECT * FROM topics ORDER BY id DESC;');
-    const payload = JSON.stringify({ type: 'topics_update', topics: result.rows });
-    activeClients.forEach((c, user) => { 
-      if(c.readyState === WebSocket.OPEN) {
-        c.send(payload);
-      } else {
-        activeClients.delete(user);
-      }
-    });
-  } catch (err) {
-    console.error('Broadcast error:', err);
-  }
+  const result = await db.query('SELECT * FROM topics ORDER BY id DESC;');
+  broadcastSystemUpdate({ type: 'topics_update', topics: result.rows });
 }
 
 app.get('/dm-contacts', authenticateToken, async (req, res) => {
@@ -111,37 +88,25 @@ app.get('/dm-contacts', authenticateToken, async (req, res) => {
 
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
-  console.log(`Register attempt for user: ${username}`);
   if(!username || !password) return res.status(400).json({error: "Missing parameters"});
   try {
     const hash = await bcrypt.hash(password, 10);
     await db.query('INSERT INTO users (username, password_hash) VALUES ($1, $2);', [username, hash]);
     await db.query('INSERT INTO profiles (username) VALUES ($1) ON CONFLICT DO NOTHING;', [username]);
     res.json({ token: jwt.sign({ username }, JWT_SECRET), username });
-  } catch (err) {
-    console.error('Registration error:', err);
-    if (err.code === '23505') { // PostgreSQL unique violation
-      res.status(400).json({ error: 'Username already taken' });
-    } else {
-      res.status(500).json({ error: 'Internal server error during registration' });
-    }
-  }
+  } catch (err) { res.status(400).json({ error: 'Username already taken' }); }
 });
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  console.log(`Login attempt for user: ${username}`);
-  try {
-    const result = await db.query('SELECT * FROM users WHERE username = $1;', [username]);
-    const user = result.rows[0];
-    if (!user || user.is_banned || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ error: 'Rejected' });
-    }
-    res.json({ token: jwt.sign({ username }, JWT_SECRET), username });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Internal server error during login' });
+  if(!username || !password) return res.status(400).json({ error: 'Missing parameters' });
+  
+  const result = await db.query('SELECT * FROM users WHERE username = $1;', [username]);
+  const user = result.rows[0];
+  if (!user || user.is_banned || !(await bcrypt.compare(password, user.password_hash))) {
+    return res.status(401).json({ error: 'Invalid connection credentials' });
   }
+  res.json({ token: jwt.sign({ username }, JWT_SECRET), username });
 });
 
 app.get('/api/profile/:username', authenticateToken, async (req, res) => {
@@ -229,7 +194,6 @@ wss.on('connection', (ws) => {
   ws.on('message', async (msg) => {
     try {
       const data = JSON.parse(msg);
-	  console.log('Received a message: '+msg)
 
       if (data.type === 'auth') {
         const decoded = jwt.verify(data.token, JWT_SECRET); authUser = decoded.username;
