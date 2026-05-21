@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>un-reader</title>
+    <style>
+      body {
+        overflow-y: hidden;
+      }
+      .paper {
+        border: 3px solid black;
+        background-color: white;
+        color: black;
+        margin: 2px;
+      }
+      #title-bar {
+        padding: 2px;
+        width: auto;
+        height: 4vh;
+        font-size: 1.6vh;
+        display: flex;
+        flex-flow: row nowrap;
+        justify-content: center;
+        align-items: center;
+      }
+      #chat {
+        overflow-y: scroll;
+      }
+      #input {
+        width: 100vw;
+        background-color: lightgray;
+      }
+      #input input {
+        display: inline-block;
+        margin-right: 0px;
+      }
+      #input button {
+        display: inline-block;
+        font-size: 2.5vh;
+        width: min-content;
+        aspect-ratio: 1;
+      }
+      .message {
+        border: 1.5px solid black;
+        border-radius: 5px;
+        width: 80vw;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="paper" id="title-bar"><h1>un-reader</h1></div>
+    <div id="chat"></div>
+    <div id="input" class="paper">
+      <input
+        class="paper"
+        type="text"
+        id="content"
+        placeholder="Enter a message..."
+      />
+      <button class="paper" id="send">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M4.698 4.034l16.302 7.966l-16.302 7.966a.503 .503 0 0 1 -.546 -.124a.555 .555 0 0 1 -.12 -.568l2.468 -7.274l-2.468 -7.274a.555 .555 0 0 1 .12 -.568a.503 .503 0 0 1 .546 -.124z"
+          />
+          <path d="M6.5 12h14.5" />
+        </svg>
+      </button>
+    </div>
+  </body>
+</html>
