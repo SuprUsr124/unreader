@@ -1,37 +1,51 @@
 import express from 'express'
 import { WebSocketServer, WebSocket } from 'ws'
-import Database from 'better-sqlite3'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import pkg from 'pg'
+const { Client } = pkg
 
 const JWT_SECRET = process.env.JWT_SECRET || 'brutalist_secret_key_123'
 
-const db = new Database('chat.db')
-db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        username TEXT NOT NULL, 
-        timestamp INTEGER NOT NULL, 
-        content TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS dms (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sender TEXT NOT NULL,
-        receiver TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        content TEXT NOT NULL
-    );
-`)
+// Connect to your external Postgres database
+const db = new Client({
+    connectionString: process.env.DATABASE_URL
+})
+
+async function initDatabase() {
+    await db.connect();
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY, 
+            username TEXT NOT NULL, 
+            timestamp BIGINT NOT NULL, 
+            content TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS dms (
+            id SERIAL PRIMARY KEY,
+            sender TEXT NOT NULL,
+            receiver TEXT NOT NULL,
+            timestamp BIGINT NOT NULL,
+            content TEXT NOT NULL
+        );
+    `);
+    console.log("PostgreSQL Connected and Tables Ready");
+}
+initDatabase().catch(err => console.error("Database boot failure", err));
 
 const app = express()
 app.use(express.json())
+
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*")
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+    next()
+})
 
 const activeClients = new Map()
 
@@ -41,7 +55,7 @@ app.get('/', async (req, res) => {
         const index = await fs.readFile(indexPath, 'utf8')
         res.setHeader('Content-Type', 'text/html').send(index)
     } catch (err) {
-        res.status(500).send('Missing index.html inside static/ folder.')
+        res.status(500).send('Missing index.html file.')
     }
 })
 
@@ -50,7 +64,7 @@ app.post('/api/register', async (req, res) => {
     if (!username || !password) return res.status(400).json({ error: 'Missing fields' })
     try {
         const hash = await bcrypt.hash(password, 10)
-        db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?);').run(username, hash)
+        await db.query('INSERT INTO users (username, password_hash) VALUES ($1, $2);', [username, hash])
         const token = jwt.sign({ username }, JWT_SECRET)
         res.json({ token, username })
     } catch (err) {
@@ -60,25 +74,30 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body
-    const user = db.prepare('SELECT * FROM users WHERE username = ?;').get(username)
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-        return res.status(401).json({ error: 'Invalid credentials' })
+    try {
+        const result = await db.query('SELECT * FROM users WHERE username = $1;', [username])
+        const user = result.rows[0]
+        if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+            return res.status(401).json({ error: 'Invalid credentials' })
+        }
+        const token = jwt.sign({ username }, JWT_SECRET)
+        res.json({ token, username })
+    } catch (err) {
+        res.status(500).json({ error: 'Server authentication failure' })
     }
-    const token = jwt.sign({ username }, JWT_SECRET)
-    res.json({ token, username })
 })
 
-app.get('/history', (req, res) => {
+app.get('/history', async (req, res) => {
     const offset = parseInt(req.query.index ?? '0', 10) * 10
     try {
-        const messages = db.prepare('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 10 OFFSET ?;').all(offset)
-        res.json(messages.reverse()) 
+        const result = await db.query('SELECT * FROM messages ORDER BY timestamp DESC LIMIT 10 OFFSET $1;', [offset])
+        res.json(result.rows.reverse()) 
     } catch (err) {
         res.status(500).json({ error: 'Database history error.' })
     }
 })
 
-app.get('/dm-history', (req, res) => {
+app.get('/dm-history', async (req, res) => {
     const authHeader = req.headers.authorization
     const target = req.query.target
     if (!authHeader || !target) return res.status(401).json({ error: 'Unauthorized' })
@@ -86,27 +105,24 @@ app.get('/dm-history', (req, res) => {
         const token = authHeader.split(' ')[1]
         const decoded = jwt.verify(token, JWT_SECRET)
         const me = decoded.username
-        const messages = db.prepare(`
-            SELECT * FROM dms WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
+        const result = await db.query(`
+            SELECT * FROM dms WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
             ORDER BY timestamp DESC LIMIT 30;
-        `).all(me, target, target, me)
-        res.json(messages.reverse())
+        `, [me, target])
+        res.json(result.rows.reverse())
     } catch (err) {
         res.status(401).json({ error: 'Session expired' })
     }
 })
 
-// Port binding update optimized for cloud deployment environments
 const PORT = process.env.PORT || 3000
-const server = app.listen(PORT, () => console.log(`HTTP running on port ${PORT}`))
-
-// Attach WebSocket Server to the same Express port instead of a separate one (important for cloud hosting!)
+const server = app.listen(PORT, () => console.log(`HTTP operational on port ${PORT}`))
 const wss = new WebSocketServer({ server })
 
 wss.on('connection', (ws) => {
     let authenticatedUser = null
 
-    ws.on('message', (msg) => {
+    ws.on('message', async (msg) => {
         try {
             const data = JSON.parse(msg)
 
@@ -120,37 +136,29 @@ wss.on('connection', (ws) => {
             if (!authenticatedUser) return;
             const timestamp = Date.now()
 
-            // NEW: Route Typing Status Indicators Privately
             if (data.type === 'typing') {
                 const targetSocket = activeClients.get(data.target)
                 if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
-                    targetSocket.send(JSON.stringify({
-                        type: 'typing',
-                        sender: authenticatedUser
-                    }))
+                    targetSocket.send(JSON.stringify({ type: 'typing', sender: authenticatedUser }))
                 }
                 return;
             }
 
             if (data.type === 'public') {
-                db.prepare('INSERT INTO messages (username, timestamp, content) VALUES (?, ?, ?);')
-                    .run(authenticatedUser, timestamp, data.content)
-
+                await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3);', [authenticatedUser, timestamp, data.content])
                 const payload = JSON.stringify({ type: 'public', username: authenticatedUser, timestamp, content: data.content })
                 wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(payload) })
             }
 
             if (data.type === 'dm') {
-                db.prepare('INSERT INTO dms (sender, receiver, timestamp, content) VALUES (?, ?, ?, ?);')
-                    .run(authenticatedUser, data.target, timestamp, data.content)
-
+                await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4);', [authenticatedUser, data.target, timestamp, data.content])
                 const payload = JSON.stringify({ type: 'dm', sender: authenticatedUser, receiver: data.target, timestamp, content: data.content })
                 ws.send(payload)
                 const targetSocket = activeClients.get(data.target)
                 if (targetSocket && targetSocket.readyState === WebSocket.OPEN) targetSocket.send(payload)
             }
         } catch (err) {
-            console.error('Socket error:', err)
+            console.error('Transmission fault:', err)
         }
     })
 
