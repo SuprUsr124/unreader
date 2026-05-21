@@ -1,16 +1,15 @@
 <!-- ⚠️ CONFIGURATION TARGET: REPLACE BOTH URLS BELOW WITH YOUR RENDER APP ADDRESS -->
-<script>
-  const BACKEND_URL = "https://unreader.onrender.com"; 
-  const WS_URL = "wss://unreader.onrender.com";
+<script type="text/javascript">
+  const BACKEND_URL = "https://onrender.com"; 
+  const WS_URL = "wss://://onrender.com";
 </script>
 
-<!doctype html>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://w3.org">
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <title>un-reader</title>
-  <style>
+  <style type="text/css">
     body { 
       margin: 0; padding: 0; overflow: hidden; 
       height: 100vh; display: flex; flex-direction: column;
@@ -62,8 +61,8 @@
   <div id="auth-screen">
     <div class="paper auth-box">
       <h2 id="auth-title" style="margin-top:0; text-transform:uppercase;">Login</h2>
-      <input class="paper" type="text" id="auth-user" placeholder="Username" autocomplete="off" />
-      <input class="paper" type="password" id="auth-pass" placeholder="Password" />
+      <input class="paper" type="text" id="auth-user" placeholder="Username" autocomplete="off">
+      <input class="paper" type="password" id="auth-pass" placeholder="Password">
       <button class="paper" id="auth-submit">SUBMIT</button>
       <div id="auth-toggle" class="auth-toggle">Need to create an account? Register</div>
     </div>
@@ -82,7 +81,7 @@
       <div class="panel-header">Channels</div>
       <div class="nav-item active" id="nav-public" onclick="switchChannel('public')">🌍 Global Chat</div>
       <div class="panel-header" style="border-top: 2px solid black;">Direct Messages</div>
-      <input class="paper" type="text" id="dm-target-input" placeholder="+ Type user & press Enter..." autocomplete="off" />
+      <input class="paper" type="text" id="dm-target-input" placeholder="+ Type user & press Enter..." autocomplete="off">
       <div id="dm-list"></div>
     </div>
 
@@ -90,7 +89,7 @@
       <div id="chat"></div>
       <div id="typing-indicator"></div>
       <div id="input" class="paper">
-        <input class="paper" type="text" id="content" placeholder="Enter a message..." autocomplete="off" />
+        <input class="paper" type="text" id="content" placeholder="Enter a message..." autocomplete="off">
         <button class="paper" id="send">
           <svg xmlns="http://w3.org" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4.698 4.034l16.302 7.966l-16.302 7.966a.503 .503 0 0 1 -.546 -.124a.555 .555 0 0 1 -.12 -.568l2.468 -7.274l-2.468 -7.274a.555 .555 0 0 1 .12 -.568a.503 .503 0 0 1 .546 -.124z" />
@@ -101,7 +100,7 @@
     </div>
   </div>
 
-  <script>
+  <script type="text/javascript">
     let token = localStorage.getItem('token');
     let myUsername = localStorage.getItem('username');
     let currentMode = 'public';
@@ -110,22 +109,22 @@
     let isRegisterMode = false;
 
     const authToggle = document.getElementById('auth-toggle');
-    authToggle.addEventListener('click', () => {
+    authToggle.addEventListener('click', function() {
       isRegisterMode = !isRegisterMode;
       document.getElementById('auth-title').textContent = isRegisterMode ? 'Register' : 'Login';
       authToggle.textContent = isRegisterMode ? 'Already have an account? Login' : 'Need to create an account? Register';
     });
 
-    document.getElementById('auth-submit').addEventListener('click', async () => {
+    document.getElementById('auth-submit').addEventListener('click', async function() {
       const username = document.getElementById('auth-user').value.trim();
       const password = document.getElementById('auth-pass').value;
       if(!username || !password) return alert('Please fill in all fields');
 
       const url = isRegisterMode ? '/api/register' : '/api/login';
-      const res = await fetch(`${BACKEND_URL}${url}`, {
+      const res = await fetch(BACKEND_URL + url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: username, password: password })
       });
       const data = await res.json();
       if(data.error) return alert(data.error);
@@ -137,24 +136,24 @@
       initApp();
     });
 
-    document.getElementById('logout-btn').addEventListener('click', () => {
+    document.getElementById('logout-btn').addEventListener('click', function() {
       localStorage.clear();
       window.location.reload();
     });
 
     function initApp() {
       document.getElementById('auth-screen').style.display = 'none';
-      document.getElementById('user-display').textContent = `@${myUsername}`;
+      document.getElementById('user-display').textContent = '@' + myUsername;
       
       socket = new WebSocket(WS_URL);
       
-      socket.onopen = () => { socket.send(JSON.stringify({ type: 'auth', token })); };
+      socket.onopen = function() { socket.send(JSON.stringify({ type: 'auth', token: token })); };
 
-      socket.onmessage = (event) => {
+      socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
         
         if (data.type === 'typing' && currentMode === 'dm' && currentDMTarget === data.sender) {
-            showTypingState(`${data.sender} is typing...`);
+            showTypingState(data.sender + ' is typing...');
             return;
         }
 
@@ -169,7 +168,25 @@
           }
         }
       };
+      
+      loadDMContacts(); // Hydrate active contacts from cloud DB on initialization 
       loadHistory();
+    }
+
+    async function loadDMContacts() {
+      try {
+        const res = await fetch(BACKEND_URL + '/dm-contacts', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+          const contacts = await res.json();
+          contacts.forEach(function(username) {
+            ensureDMNavOption(username);
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load contacts list:", err);
+      }
     }
 
     function showTypingState(text) {
@@ -184,17 +201,17 @@
     }
 
     function ensureDMNavOption(username) {
-      if (document.getElementById(`nav-dm-${username}`) || username === myUsername) return;
+      if (document.getElementById('nav-dm-' + username) || username === myUsername) return;
       const targetList = document.getElementById('dm-list');
       const item = document.createElement('div');
       item.className = 'nav-item';
-      item.id = `nav-dm-${username}`;
-      item.textContent = `💬 ${username}`;
-      item.onclick = () => switchChannel('dm', username);
+      item.id = 'nav-dm-' + username;
+      item.textContent = '💬 ' + username;
+      item.onclick = function() { switchChannel('dm', username); };
       targetList.appendChild(item);
     }
 
-    document.getElementById('dm-target-input').addEventListener('keypress', (e) => {
+    document.getElementById('dm-target-input').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         const target = e.target.value.trim();
         if(!target || target === myUsername) return;
@@ -204,13 +221,18 @@
       }
     });
 
-    function switchChannel(mode, target = '') {
+    function switchChannel(mode, target) {
+      if(!target) target = '';
       currentMode = mode;
       currentDMTarget = target;
       clearTypingIndicator();
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      if(mode === 'public') document.getElementById('nav-public').classList.add('active');
-      else document.getElementById(`nav-dm-${target}`)?.classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+      if(mode === 'public') {
+        document.getElementById('nav-public').classList.add('active');
+      } else {
+        var activeTab = document.getElementById('nav-dm-' + target);
+        if (activeTab) activeTab.classList.add('active');
+      }
       document.getElementById('chat').innerHTML = '';
       loadHistory();
     }
@@ -219,9 +241,9 @@
     function appendMessage(data) {
       const msgDiv = document.createElement('div');
       const isMe = data.username === myUsername;
-      msgDiv.className = `message paper ${isMe ? 'my-msg' : 'other-msg'}`;
+      msgDiv.className = 'message paper ' + (isMe ? 'my-msg' : 'other-msg');
       const timeStr = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      msgDiv.innerHTML = `<div class="message-meta">${data.username} • ${timeStr}</div><div class="message-text"></div>`;
+      msgDiv.innerHTML = '<div class="message-meta">' + data.username + ' • ' + timeStr + '</div><div class="message-text"></div>';
       msgDiv.querySelector('.message-text').textContent = data.content;
       chat.appendChild(msgDiv);
       chat.scrollTop = chat.scrollHeight;
@@ -231,19 +253,21 @@
       try {
         let res, data;
         if (currentMode === 'public') {
-          res = await fetch(`${BACKEND_URL}/history?index=0`);
+          res = await fetch(BACKEND_URL + '/history?index=0');
           data = await res.json();
-          data.forEach(msg => appendMessage(msg));
+          data.forEach(function(msg) { appendMessage(msg); });
         } else {
-          res = await fetch(`${BACKEND_URL}/dm-history?target=${currentDMTarget}`, { headers: { 'Authorization': `Bearer ${token}` } });
+          res = await fetch(BACKEND_URL + '/dm-history?target=' + currentDMTarget, { 
+            headers: { 'Authorization': 'Bearer ' + token } 
+          });
           data = await res.json();
-          data.forEach(msg => appendMessage({ username: msg.sender, content: msg.content, timestamp: msg.timestamp }));
+          data.forEach(function(msg) { appendMessage({ username: msg.sender, content: msg.content, timestamp: msg.timestamp }); });
         }
       } catch (err) { console.error(err); }
     }
 
     const input = document.getElementById('content');
-    input.addEventListener('input', () => {
+    input.addEventListener('input', function() {
         if (currentMode === 'dm' && socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: 'typing', target: currentDMTarget }));
         }
@@ -257,7 +281,7 @@
     }
 
     document.getElementById('send').addEventListener('click', sendMessage);
-    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    input.addEventListener('keypress', function(e) { if (e.key === 'Enter') sendMessage(); });
 
     if (token && myUsername) initApp();
   </script>
