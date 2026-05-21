@@ -59,7 +59,7 @@ function broadcastOnlineRoster() {
   });
 }
 
-// REST API Endpoints
+// REST API ENDPOINTS
 
 app.get('/dm-contacts', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -121,14 +121,12 @@ app.post('/api/change-password', async (req, res) => {
     
     const newHash = await bcrypt.hash(password, 10);
     await db.query('UPDATE users SET password_hash = $1 WHERE username = $2;', [newHash, username]);
-    
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
     res.status(401).json({ error: 'Authentication failed' });
   }
 });
 
-// FIXED: Infinite Scroll Public Feed History Pagination
 app.get('/history', async (req, res) => {
   const pageIndex = parseInt(req.query.index ?? '0', 10);
   const offset = pageIndex * 10;
@@ -140,7 +138,6 @@ app.get('/history', async (req, res) => {
   }
 });
 
-// FIXED: Infinite Scroll Secure DM Feed History Pagination
 app.get('/dm-history', async (req, res) => {
   const authHeader = req.headers.authorization;
   const target = req.query.target;
@@ -154,7 +151,7 @@ app.get('/dm-history', async (req, res) => {
     const me = decoded.username;
 
     const result = await db.query(`
-      SELECT * FROM dms 
+      SELECT id, sender AS username, receiver, timestamp, content FROM dms 
       WHERE (sender = $1 AND receiver = $2) OR (sender = $2 AND receiver = $1)
       ORDER BY timestamp DESC LIMIT 10 OFFSET $3;
     `, [me, target, offset]);
@@ -179,7 +176,6 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(message);
 
-      // Handle Authentication via WS Connection
       if (data.type === 'auth') {
         const decoded = jwt.verify(data.token, JWT_SECRET);
         authenticatedUser = decoded.username;
@@ -188,16 +184,13 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // Safeguard unauthorized sockets
       if (!authenticatedUser) {
         ws.send(JSON.stringify({ type: 'error', message: 'Unauthenticated' }));
         return;
       }
 
-      // FIXED: Process terminal-style system operator override terminations
       if (data.type === 'mod_kick' && isMasterAdmin(authenticatedUser)) {
         if (isMasterAdmin(data.target)) return;
-        
         const targetSocket = activeClients.get(data.target);
         if (targetSocket) {
           targetSocket.send(JSON.stringify({ type: 'terminated' }));
@@ -208,14 +201,12 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // FIXED: Process instantaneous database item purges from 'X' elements
       if (data.type === 'mod_delete' && isMasterAdmin(authenticatedUser)) {
         if (data.channel === 'public') {
           await db.query('DELETE FROM messages WHERE id = $1;', [data.id]);
         } else {
           await db.query('DELETE FROM dms WHERE id = $1;', [data.id]);
         }
-        
         const deletePayload = JSON.stringify({ type: 'msg_deleted', id: data.id });
         activeClients.forEach(function(c) {
           if (c.readyState === WebSocket.OPEN) c.send(deletePayload);
@@ -223,7 +214,6 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // FIXED: Route typing status tracking indicators securely to the right targets
       if (data.type === 'typing') {
         const targetSocket = activeClients.get(data.target);
         if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
@@ -232,15 +222,13 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // Broadcast public global channel messages
-      if (data.type === 'public') {
+      if (data.type === 'message') {
         const timestamp = Date.now();
-        // FIXED: Added RETURNING id statement to feed index structures safely
         const dbRes = await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3) RETURNING id;', [authenticatedUser, timestamp, data.content]);
         const insertedId = dbRes.rows[0].id;
         
         const broadcastPayload = JSON.stringify({
-          type: 'public',
+          type: 'message',
           id: insertedId,
           username: authenticatedUser,
           timestamp,
@@ -254,34 +242,30 @@ wss.on('connection', (ws) => {
         });
       }
 
-      // Direct Message Routing Engine
       if (data.type === 'dm') {
         const timestamp = Date.now();
-        // FIXED: Added RETURNING id statement to feed index structures safely
         const dbRes = await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4) RETURNING id;', [authenticatedUser, data.target, timestamp, data.content]);
         const insertedId = dbRes.rows[0].id;
         
         const dmPayload = JSON.stringify({
           type: 'dm',
           id: insertedId,
+          username: authenticatedUser,
           sender: authenticatedUser,
           receiver: data.target,
           timestamp,
           content: data.content
         });
 
-        // Send to receiver if online
         const recipientSocket = activeClients.get(data.target);
         if (recipientSocket && recipientSocket.readyState === WebSocket.OPEN) {
           recipientSocket.send(dmPayload);
         }
-        // Send reflection back to sender device
         ws.send(dmPayload);
       }
 
     } catch (err) {
       console.error(err);
-      ws.send(JSON.stringify({ type: 'error', message: 'Malformed message or invalid session token' }));
     }
   });
 
