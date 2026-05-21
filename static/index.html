@@ -1,3 +1,9 @@
+<!-- ⚠️ CONFIGURATION TARGET: REPLACE BOTH URLS BELOW WITH YOUR RENDER APP ADDRESS -->
+<script type="text/javascript">
+  var BACKEND_URL = "https://unreader.onrender.com"; 
+  var WS_URL = "wss://unreader.onrender.com";
+</script>
+
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://w3.org">
 <html lang="en">
 <head>
@@ -58,7 +64,6 @@
     .my-msg { float: right; background-color: #e2f0cb; text-align: left; }
     .other-msg { float: left; background-color: white; }
 
-    /* 👑 EXCLUSIVE SYSTEM OPERATOR SHADOW PULSE CLASSES FOR BOTH ADMIN CHANNELS */
     .boss-msg {
       float: right;
       background: #ffe066 !important;
@@ -124,7 +129,7 @@
         <input class="paper" type="text" id="dm-target-input" placeholder="+ Type user & press Enter..." autocomplete="off">
         <div id="dm-list"></div>
         
-        <!-- User Settings Area (Change Password) -->
+        <!-- User Settings Area -->
         <div class="panel-header" style="border-top: 2px solid black;">Account Settings</div>
         <div id="settings-box-container">
           <input type="password" id="settings-new-pass" class="paper settings-input" placeholder="New Password...">
@@ -152,9 +157,6 @@
   </table>
 
   <script type="text/javascript">
-    var BACKEND_URL = "https://unreader.onrender.com"; 
-    var WS_URL = "wss://unreader.onrender.com";
-
     var token = localStorage.getItem('token');
     var myUsername = localStorage.getItem('username');
     var currentMode = 'public';
@@ -199,7 +201,6 @@
       xhr.send(JSON.stringify({ username: username, password: password }));
     };
 
-    // Change Password Execution Block
     document.getElementById('settings-save-btn').onclick = function() {
       var newPassword = document.getElementById('settings-new-pass').value;
       if (!newPassword) return alert('Please input a fresh password string');
@@ -309,7 +310,95 @@
       xhr.onreadystatechange = function() {
         if (xhr.readyState === 4 && xhr.status === 200) {
           var contacts = JSON.parse(xhr.responseText);
-          for (var i = 0; i ' + nameDisplay + ' • ' + timeStr + '</div><div class="message-text"></div>';
+          for (var i = 0; i < contacts.length; i++) {
+            ensureDMNavOption(contacts[i]);
+          }
+        }
+      };
+      xhr.send();
+    }
+
+    function showTypingState(text) {
+        var indicator = document.getElementById('typing-indicator');
+        indicator.textContent = text;
+        clearTimeout(typingClearTimer);
+        typingClearTimer = setTimeout(clearTypingIndicator, 3000);
+    }
+    
+    function clearTypingIndicator() {
+        document.getElementById('typing-indicator').textContent = '';
+    }
+
+    function ensureDMNavOption(username) {
+      if (document.getElementById('nav-dm-' + username) || username === myUsername) return;
+      var targetList = document.getElementById('dm-list');
+      var item = document.createElement('div');
+      item.className = 'nav-item';
+      item.id = 'nav-dm-' + username;
+      item.textContent = '💬 ' + username;
+      item.onclick = function() { switchChannel('dm', username); };
+      targetList.appendChild(item);
+    }
+
+    document.getElementById('dm-target-input').onkeypress = function(e) {
+      var key = e.keyCode || e.with;
+      if (key === 13) {
+        var target = e.target.value.trim();
+        if(!target || target === myUsername) return;
+        ensureDMNavOption(target);
+        switchChannel('dm', target);
+        e.target.value = '';
+      }
+    };
+
+    function switchChannel(mode, target) {
+      if(!target) target = '';
+      currentMode = mode;
+      currentDMTarget = target;
+      clearTypingIndicator();
+      
+      var navItems = document.getElementById('sidebar-cell').getElementsByTagName('div');
+      for (var i = 0; i < navItems.length; i++) {
+        if(navItems[i].className.indexOf('nav-item') !== -1) {
+          navItems[i].className = 'nav-item';
+        }
+      }
+      
+      if(mode === 'public') {
+        document.getElementById('nav-public').className = 'nav-item nav-item-active';
+      } else {
+        var activeTab = document.getElementById('nav-dm-' + target);
+        if (activeTab) activeTab.className = 'nav-item nav-item-active';
+      }
+      document.getElementById('chat-scroll-wrapper').innerHTML = '';
+      loadHistory();
+    }
+
+    function appendMessage(data) {
+      var chatWrapper = document.getElementById('chat-scroll-wrapper');
+      var containerDiv = document.createElement('div');
+      containerDiv.className = 'message-container';
+      
+      var msgDiv = document.createElement('div');
+      msgDiv.id = 'msg-id-' + data.id;
+      var isMe = data.username === myUsername;
+      var isBoss = isMasterAdmin(data.username);
+      
+      var messageStyleClass = 'message paper ';
+      if (isBoss) {
+          messageStyleClass += 'boss-msg';
+      } else if (isMe) {
+          messageStyleClass += 'my-msg';
+      } else {
+          messageStyleClass += 'other-msg';
+      }
+      msgDiv.className = messageStyleClass;
+      
+      var timeStr = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      var nameDisplay = isBoss ? '👑 ' + data.username + ' [SYS_OP]' : data.username;
+      var metaStyleClass = isBoss ? 'message-meta boss-meta' : 'message-meta';
+
+      msgDiv.innerHTML = '<div class="' + metaStyleClass + '">' + nameDisplay + ' • ' + timeStr + '</div><div class="message-text"></div>';
       
       if (isMasterAdmin(myUsername)) {
         var delBtn = document.createElement('button');
