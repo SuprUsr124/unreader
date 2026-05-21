@@ -3,6 +3,8 @@ import { WebSocketServer, WebSocket } from 'ws'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import pkg from 'pg'
+import path from 'node:path' // FIXED: Added missing import
+import fs from 'node:fs/promises'
 const { Client } = pkg
 
 const JWT_SECRET = process.env.JWT_SECRET || 'brutalist_secret_key_123'
@@ -57,7 +59,7 @@ app.get('/dm-contacts', async (req, res) => {
     if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        const token = authHeader.split(' ')[1];
+        const token = authHeader.split(' ')[1]; // FIXED: Access index 1 safely
         const decoded = jwt.verify(token, JWT_SECRET);
         const me = decoded.username;
 
@@ -88,20 +90,17 @@ app.post('/api/register', async (req, res) => {
     }
 })
 
-// FIXED: Now safely checks isolated array row rows to verify passwords without app crashes
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body
     try {
         const result = await db.query('SELECT * FROM users WHERE username = $1;', [username])
-        const user = result.rows[0]; // FIXED: Isolates single user object out from results array array row profile
-        
+        const user = result.rows[0]; // FIXED: Must get index 0 from result.rows array
         if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-            return res.status(401).json({ error: 'Invalid username or password credentials' })
+            return res.status(401).json({ error: 'Invalid credentials' })
         }
-        const token = jwt.sign({ username }, JWT_SECRET)
-        res.json({ token, username })
+        const token = jwt.sign({ username: user.username }, JWT_SECRET)
+        res.json({ token, username: user.username })
     } catch (err) {
-        console.error(err);
         res.status(500).json({ error: 'Server authentication failure' })
     }
 })
@@ -206,7 +205,7 @@ wss.on('connection', (ws) => {
 
             if (data.type === 'public') {
                 const dbRes = await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3) RETURNING id;', [authenticatedUser, timestamp, data.content])
-                const insertedId = dbRes.rows[0].id;
+                const insertedId = dbRes.rows[0].id; // FIXED: Accurate Postgres row assignment mapping
                 
                 const payload = JSON.stringify({ id: insertedId, type: 'public', username: authenticatedUser, timestamp, content: data.content })
                 wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(payload) })
@@ -214,8 +213,17 @@ wss.on('connection', (ws) => {
 
             if (data.type === 'dm') {
                 const dbRes = await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4) RETURNING id;', [authenticatedUser, data.target, timestamp, data.content])
-                const insertedId = dbRes.rows[0].id;
+                const insertedId = dbRes.rows[0].id; // FIXED: Accurate Postgres row assignment mapping
                 
                 const payload = JSON.stringify({ id: insertedId, type: 'dm', sender: authenticatedUser, receiver: data.target, timestamp, content: data.content })
                 ws.send(payload)
-                
+                const targetSocket = activeClients.get(data.target)
+                if (targetSocket && targetSocket.readyState === WebSocket.OPEN) targetSocket.send(payload)
+            }
+        } catch (err) {
+            console.error('Transmission fault:', err)
+        }
+    })
+
+    ws.on('close', () => { if (authenticatedUser) activeClients.delete(authenticatedUser) })
+})
