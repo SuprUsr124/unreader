@@ -88,20 +88,23 @@ app.post('/api/register', async (req, res) => {
     }
 })
 
-// FIXED: Database row extraction targeted accurately
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body
     try {
         const result = await db.query('SELECT * FROM users WHERE username = $1;', [username])
         
-        // FIXED: Extract the raw individual row profile from rows array collection map
-        var user = result.rows[0];
-        
-        if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+        // FIXED: Extract the raw index mapping [0] out of row variables to unlock authentication comparisons
+        if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid credentials' })
         }
-        const token = jwt.sign({ username: user.username }, JWT_SECRET)
-        res.json({ token, username: user.username })
+        
+        const user = result.rows[0];
+        if (!(await bcrypt.compare(password, user.password_hash))) {
+            return res.status(401).json({ error: 'Invalid credentials' })
+        }
+        
+        const token = jwt.sign({ username }, JWT_SECRET)
+        res.json({ token, username })
     } catch (err) {
         res.status(500).json({ error: 'Server authentication failure' })
     }
@@ -219,13 +222,4 @@ wss.on('connection', (ws) => {
                 
                 const payload = JSON.stringify({ id: insertedId, type: 'dm', sender: authenticatedUser, receiver: data.target, timestamp, content: data.content })
                 ws.send(payload)
-                const targetSocket = activeClients.get(data.target)
-                if (targetSocket && targetSocket.readyState === WebSocket.OPEN) targetSocket.send(payload)
-            }
-        } catch (err) {
-            console.error('Transmission fault:', err)
-        }
-    })
-
-    ws.on('close', () => { if (authenticatedUser) activeClients.delete(authenticatedUser) })
-})
+                
