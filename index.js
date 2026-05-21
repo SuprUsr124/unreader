@@ -22,7 +22,7 @@ const db = new Pool({ connectionString })
 
 async function initDatabase() {
   try {
-    // Migration: Add role flags if they don't exist
+    // 1. Create Core Schema
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY, 
@@ -33,8 +33,10 @@ async function initDatabase() {
         is_admin BOOLEAN DEFAULT false,
         is_moderator BOOLEAN DEFAULT false
       );
-      
-      -- Ensure columns exist for older databases
+    `);
+
+    // 2. Run migrations for older schemas safely
+    await db.query(`
       DO $$ 
       BEGIN 
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_admin') THEN
@@ -44,17 +46,14 @@ async function initDatabase() {
           ALTER TABLE users ADD COLUMN is_moderator BOOLEAN DEFAULT false;
         END IF;
       END $$;
+    `);
 
+    // 3. Create Supporting Tables & Performance Indexes
+    await db.query(`
       CREATE TABLE IF NOT EXISTS mod_logs (
-        id SERIAL PRIMARY KEY,
-        mod_username TEXT NOT NULL,
-        action_type TEXT NOT NULL,
-        target_username TEXT,
-        target_id INTEGER,
-        reason TEXT,
-        timestamp BIGINT NOT NULL
+        id SERIAL PRIMARY KEY, mod_username TEXT NOT NULL, action_type TEXT NOT NULL,
+        target_username TEXT, target_id INTEGER, reason TEXT, timestamp BIGINT NOT NULL
       );
-
       CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
       );
@@ -76,14 +75,32 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS neighborhood_comments (
         id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL, username TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, is_deleted BOOLEAN DEFAULT false
       );
+
+      CREATE INDEX IF NOT EXISTS idx_messages_id ON messages(id DESC);
+      CREATE INDEX IF NOT EXISTS idx_topic_messages_slug ON topic_messages(topic_slug);
+      CREATE INDEX IF NOT EXISTS idx_dms_participants ON dms(sender, receiver);
     `);
     
-    // Seed initial admins if specified in env or if it's the first run
+    // 4. Seed Admins: Ensure accounts exist first, then grant admin access
+    const placeholderHash = await bcrypt.hash('temporary_admin_password_change_me', 10);
+    
+    await db.query(`
+      INSERT INTO users (username, password_hash) 
+      VALUES ('augustinejames', $1), ('tockdev', $1)
+      ON CONFLICT (username) DO NOTHING;
+    `, [placeholderHash]);
+
     await db.query(`
       UPDATE users SET is_admin = true WHERE username IN ('augustinejames', 'tockdev');
     `);
 
-    console.log("Database online. Dynamic roles and mod logs initialized.");
+    await db.query(`
+      INSERT INTO profiles (username) 
+      VALUES ('augustinejames'), ('tockdev') 
+      ON CONFLICT DO NOTHING;
+    `);
+
+    console.log("Database online. Dynamic roles, seeds, and mod logs initialized.");
   } catch (err) {
     console.error("CRITICAL DATABASE ERROR:", err);
     process.exit(1);
@@ -93,8 +110,9 @@ initDatabase();
 
 const app = express()
 
+// Fixed: Cleaned up CORS configuration. One single middleware handles everything, including OPTIONS.
 app.use(cors({
-  origin: ["https://tock-dev.github.io", "https://tock-dev.github.io/", "null"],
+  origin: ["https://tock-dev.github.io", "null"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type", "Origin", "Accept"],
   credentials: true,
@@ -102,16 +120,6 @@ app.use(cors({
 }));
 
 app.use(express.json())
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  res.header("Access-Control-Allow-Origin", origin || "*"); 
-  res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, *"); 
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-  res.header("Access-Control-Allow-Credentials", "true");
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-})
 
 async function getUserRoles(username) {
   const r = await db.query('SELECT is_admin, is_moderator FROM users WHERE username = $1;', [username]);
@@ -156,7 +164,7 @@ app.post('/api/register', async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     await db.query('INSERT INTO users (username, password_hash) VALUES ($1, $2);', [username, hash]);
     await db.query('INSERT INTO profiles (username) VALUES ($1) ON CONFLICT DO NOTHING;', [username]);
-    res.json({ token: jwt.sign({ username }, JWT_SECRET), username });
+    res.json({ token: jwt.sign({ username }, JWT_SECRET, { expiresIn: '7d' }), username });
   } catch (err) { res.status(400).json({ error: 'Username already taken' }); }
 });
 
@@ -167,7 +175,7 @@ app.post('/api/login', async (req, res) => {
   if (!user || user.is_banned || !(await bcrypt.compare(password, user.password_hash))) {
     return res.status(401).json({ error: 'Rejected' });
   }
-  res.json({ token: jwt.sign({ username }, JWT_SECRET), username });
+  res.json({ token: jwt.sign({ username }, JWT_SECRET, { expiresIn: '7d' }), username });
 });
 
 app.get('/api/profile/:username', authenticateToken, async (req, res) => {
@@ -256,6 +264,14 @@ wss.on('connection', (ws) => {
 
       if (!authUser) return;
 
+      // Fixed: Active message-time authorization protection check
+      const liveCheck = await db.query('SELECT is_banned, timeout_until FROM users WHERE username = $1;', [authUser]);
+      if (liveCheck.rows[0] && (liveCheck.rows[0].is_banned || BigInt(liveCheck.rows[0].timeout_until) > BigInt(Date.now()))) {
+        ws.send(JSON.stringify({ type: 'terminated' })); 
+        ws.close(); 
+        return;
+      }
+
       if (data.type === 'create_topic') {
         const slug = data.title.toLowerCase().replace(/[^a-z0-9]/g, '-');
         await db.query('INSERT INTO topics (slug, title, username, timestamp) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING;', [slug, data.title, authUser, String(Date.now())]);
@@ -273,13 +289,16 @@ wss.on('connection', (ws) => {
       }
 
       if (data.type === 'mod_delete' || data.type === 'mod_restore') {
+        // Fixed: Strictly checking channel structure mapping to squash SQL Injections
         const targetTable = ALLOWED_CHANNELS[data.channel];
-        if (!targetTable) return;
+        if (!targetTable) {
+          ws.send(JSON.stringify({ type: 'error_alert', message: 'Invalid channel structure.' }));
+          return;
+        }
+
         const res = await db.query(`SELECT username, sender FROM ${targetTable} WHERE id = $1;`, [data.id]);
         const owner = res.rows[0]?.username || res.rows[0]?.sender;
-        
         const isOwner = (owner === authUser);
-        const canMod = userRoles.is_admin || userRoles.is_moderator;
         
         if (isOwner || userRoles.is_admin || (userRoles.is_moderator && data.type === 'mod_delete')) {
           await db.query(`UPDATE ${targetTable} SET is_deleted = $1 WHERE id = $2;`, [data.type === 'mod_delete', data.id]);
