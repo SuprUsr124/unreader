@@ -7,7 +7,6 @@ const { Client } = pkg
 
 const JWT_SECRET = process.env.JWT_SECRET || 'brutalist_secret_key_123'
 
-// Instantiating continuous database connection profiles
 const db = new Client({
     connectionString: process.env.DATABASE_URL
 })
@@ -49,13 +48,16 @@ app.use((req, res, next) => {
 
 const activeClients = new Map()
 
-// Fetch all unique users this account has interactive DM logs mapped alongside
+function isMasterAdmin(name) {
+  return name === 'augustinejames' || name === 'tockdev';
+}
+
 app.get('/dm-contacts', async (req, res) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized payload access block' });
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        const token = authHeader.split(' ')[1] || authHeader.split(' ')[0];
+        const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         const me = decoded.username;
 
@@ -69,7 +71,7 @@ app.get('/dm-contacts', async (req, res) => {
 
         res.json(result.rows.map(row => row.username));
     } catch (err) {
-        res.status(401).json({ error: 'Session signature failure matching profile' });
+        res.status(401).json({ error: 'Session expired' });
     }
 });
 
@@ -116,7 +118,7 @@ app.get('/dm-history', async (req, res) => {
     const target = req.query.target
     if (!authHeader || !target) return res.status(401).json({ error: 'Unauthorized' })
     try {
-        const token = authHeader.split(' ')[1] || authHeader.split(' ')[0];
+        const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET)
         const me = decoded.username
         const result = await db.query(`
@@ -150,6 +152,30 @@ wss.on('connection', (ws) => {
             if (!authenticatedUser) return;
             const timestamp = Date.now()
 
+            // Root Command Override Hook: Manual Session Termination
+            if (data.type === 'mod_kick' && isMasterAdmin(authenticatedUser)) {
+                const targetSocket = activeClients.get(data.target);
+                if (targetSocket) {
+                    targetSocket.send(JSON.stringify({ type: 'terminated' }));
+                    targetSocket.close();
+                    activeClients.delete(data.target);
+                }
+                return;
+            }
+
+            // Root Command Override Hook: Instant SQL Erasure
+            if (data.type === 'mod_delete' && isMasterAdmin(authenticatedUser)) {
+                if (data.channel === 'public') {
+                    await db.query('DELETE FROM messages WHERE id = $1;', [data.id]);
+                } else {
+                    await db.query('DELETE FROM dms WHERE id = $1;', [data.id]);
+                }
+                
+                const deletePayload = JSON.stringify({ type: 'msg_deleted', id: data.id });
+                wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(deletePayload) });
+                return;
+            }
+
             if (data.type === 'typing') {
                 const targetSocket = activeClients.get(data.target)
                 if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
@@ -159,14 +185,18 @@ wss.on('connection', (ws) => {
             }
 
             if (data.type === 'public') {
-                await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3);', [authenticatedUser, timestamp, data.content])
-                const payload = JSON.stringify({ type: 'public', username: authenticatedUser, timestamp, content: data.content })
+                const dbRes = await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3) RETURNING id;', [authenticatedUser, timestamp, data.content])
+                const insertedId = dbRes.rows[0].id;
+                
+                const payload = JSON.stringify({ id: insertedId, type: 'public', username: authenticatedUser, timestamp, content: data.content })
                 wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(payload) })
             }
 
             if (data.type === 'dm') {
-                await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4);', [authenticatedUser, data.target, timestamp, data.content])
-                const payload = JSON.stringify({ type: 'dm', sender: authenticatedUser, receiver: data.target, timestamp, content: data.content })
+                const dbRes = await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4) RETURNING id;', [authenticatedUser, data.target, timestamp, data.content])
+                const insertedId = dbRes.rows[0].id;
+                
+                const payload = JSON.stringify({ id: insertedId, type: 'dm', sender: authenticatedUser, receiver: data.target, timestamp, content: data.content })
                 ws.send(payload)
                 const targetSocket = activeClients.get(data.target)
                 if (targetSocket && targetSocket.readyState === WebSocket.OPEN) targetSocket.send(payload)
