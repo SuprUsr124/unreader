@@ -218,3 +218,20 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/node,nodejs,macos,linux,windows
 
+# Created by https://www.toptal.com/developers/gitignore/api/gemini,antigravity,agy,antigravity-cli,gemini-cli
+# Edit at https://www.toptal.com/developers/gitignore?templates=gemini,antigravity,agy,antigravity-cli,gemini-cli
+
+#!! ERROR: agy is undefined. Use list command to see defined gitignore types !!#
+
+#!! ERROR: antigravity is undefined. Use list command to see defined gitignore types !!#
+
+#!! ERROR: antigravity-cli is undefined. Use list command to see defined gitignore types !!#
+
+#!! ERROR: gemini is undefined. Use list command to see defined gitignore types !!#
+
+#!! ERROR: gemini-cli is undefined. Use list command to see defined gitignore types !!#
+
+# End of https://www.toptal.com/developers/gitignore/api/gemini,antigravity,agy,antigravity-cli,gemini-cli
+
+.antigravitycli/
+
