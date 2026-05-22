@@ -183,7 +183,7 @@ app.get('/api/mod-logs', authenticateToken, async (req, res) => {
 
 app.get('/api/admin/find-user/:username', authenticateToken, async (req, res) => {
   if (!req.user.is_admin && !req.user.is_moderator) return res.status(403).json({ error: 'Unauthorized' });
-  log(`Admin User-Search: target=${req.params.username} by=${req.user.username}`);
+  log(`Admin User-Search: target=${req.params.username} by=${req.user.username} who is admin (${req.user.is_admin}) and moderator (${req.user.is_moderator})`);
   const r = await db.query('SELECT username, last_ip, timeout_until, is_banned, is_admin, is_moderator FROM users WHERE username = $1;', [req.params.username]);
   if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
   const userInfo = r.rows[0];
