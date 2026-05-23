@@ -33,11 +33,9 @@ async function initDatabase() {
         is_admin BOOLEAN DEFAULT false, is_moderator BOOLEAN DEFAULT false, last_ip TEXT
       );
       
-      DO $$ BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_admin') THEN ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT false; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_moderator') THEN ALTER TABLE users ADD COLUMN is_moderator BOOLEAN DEFAULT false; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='last_ip') THEN ALTER TABLE users ADD COLUMN last_ip TEXT; END IF;
-      END $$;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_moderator BOOLEAN DEFAULT false;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip TEXT;
 
       CREATE TABLE IF NOT EXISTS mod_logs (
         id SERIAL PRIMARY KEY, mod_username TEXT NOT NULL, action_type TEXT NOT NULL,
@@ -46,10 +44,10 @@ async function initDatabase() {
 
       CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, 
-        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT
+        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT, sender TEXT
       );
       CREATE TABLE IF NOT EXISTS dms (
-        id SERIAL PRIMARY KEY,username TEXT NOT NULL, sender TEXT NOT NULL, receiver TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, 
+        id SERIAL PRIMARY KEY, username TEXT, sender TEXT NOT NULL, receiver TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, 
         is_deleted BOOLEAN DEFAULT false, deleted_by TEXT
       );
       CREATE TABLE IF NOT EXISTS profiles (
@@ -60,48 +58,36 @@ async function initDatabase() {
       );
       CREATE TABLE IF NOT EXISTS topic_messages (
         id SERIAL PRIMARY KEY, topic_slug TEXT NOT NULL, username TEXT NOT NULL, timestamp TEXT NOT NULL, content TEXT NOT NULL, 
-        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT
+        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT, sender TEXT
       );
       CREATE TABLE IF NOT EXISTS neighborhood_posts (
         id SERIAL PRIMARY KEY, username TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, 
-        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT
+        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT, sender TEXT
       );
       CREATE TABLE IF NOT EXISTS neighborhood_comments (
         id SERIAL PRIMARY KEY, post_id INTEGER NOT NULL, username TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL, 
-        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT
+        is_deleted BOOLEAN DEFAULT false, deleted_by TEXT, sender TEXT
       );
 
-      DO $$ BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='deleted_by') THEN ALTER TABLE messages ADD COLUMN deleted_by TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dms' AND column_name='deleted_by') THEN ALTER TABLE dms ADD COLUMN deleted_by TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='topic_messages' AND column_name='deleted_by') THEN ALTER TABLE topic_messages ADD COLUMN deleted_by TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='neighborhood_posts' AND column_name='deleted_by') THEN ALTER TABLE neighborhood_posts ADD COLUMN deleted_by TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='neighborhood_comments' AND column_name='deleted_by') THEN ALTER TABLE neighborhood_comments ADD COLUMN deleted_by TEXT; END IF;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+      ALTER TABLE dms ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+      ALTER TABLE topic_messages ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+      ALTER TABLE neighborhood_posts ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+      ALTER TABLE neighborhood_comments ADD COLUMN IF NOT EXISTS deleted_by TEXT;
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='sender') THEN ALTER TABLE messages ADD COLUMN sender TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='topic_messages' AND column_name='sender') THEN ALTER TABLE topic_messages ADD COLUMN sender TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='neighborhood_posts' AND column_name='sender') THEN ALTER TABLE neighborhood_posts ADD COLUMN sender TEXT; END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='neighborhood_comments' AND column_name='sender') THEN ALTER TABLE neighborhood_comments ADD COLUMN sender TEXT; END IF;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender TEXT;
+      ALTER TABLE topic_messages ADD COLUMN IF NOT EXISTS sender TEXT;
+      ALTER TABLE neighborhood_posts ADD COLUMN IF NOT EXISTS sender TEXT;
+      ALTER TABLE neighborhood_comments ADD COLUMN IF NOT EXISTS sender TEXT;
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dms' AND column_name='username') THEN ALTER TABLE dms ADD COLUMN username TEXT; END IF;
+      ALTER TABLE dms ADD COLUMN username TEXT;
 
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='username') THEN
-          UPDATE messages SET sender = username WHERE sender IS NULL;
-        END IF;
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='topic_messages' AND column_name='username') THEN
-          UPDATE topic_messages SET sender = username WHERE sender IS NULL;
-        END IF;
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='neighborhood_posts' AND column_name='username') THEN
-          UPDATE neighborhood_posts SET sender = username WHERE sender IS NULL;
-        END IF;
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='neighborhood_comments' AND column_name='username') THEN
-          UPDATE neighborhood_comments SET sender = username WHERE sender IS NULL;
-        END IF;
+      UPDATE messages SET sender = username WHERE sender IS NULL;
+      UPDATE topic_messages SET sender = username WHERE sender IS NULL;
+      UPDATE neighborhood_posts SET sender = username WHERE sender IS NULL;
+      UPDATE neighborhood_comments SET sender = username WHERE sender IS NULL;
 
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dms' AND column_name='sender') THEN
-          UPDATE dms SET username = sender WHERE username IS NULL;
-        END IF;
-      END $$;
+      UPDATE dms SET username = sender WHERE username IS NULL;
     `);
     log("Structural migration successful.");
   } catch (err) { log("DB MIGRATION FAILURE:", err); process.exit(1); }
@@ -303,11 +289,11 @@ wss.on('connection', (ws, req) => {
 
       if (['message', 'topic_message', 'dm', 'neighborhood_post', 'neighborhood_comment'].includes(data.type)) {
         const tStr = String(Date.now());
-        if (data.type === 'message') await db.query('INSERT INTO messages (username, timestamp, content) VALUES ($1, $2, $3);', [authUser, tStr, data.content]);
-        if (data.type === 'topic_message') await db.query('INSERT INTO topic_messages (topic_slug, username, timestamp, content) VALUES ($1, $2, $3, $4);', [data.target, authUser, tStr, data.content]);
-        if (data.type === 'dm') await db.query('INSERT INTO dms (sender, receiver, timestamp, content) VALUES ($1, $2, $3, $4);', [authUser, data.target, tStr, data.content]);
-        if (data.type === 'neighborhood_post') await db.query('INSERT INTO neighborhood_posts (username, title, content, timestamp) VALUES ($1, $2, $3, $4);', [authUser, data.title, data.content, tStr]);
-        if (data.type === 'neighborhood_comment') await db.query('INSERT INTO neighborhood_comments (post_id, username, content, timestamp) VALUES ($1, $2, $3, $4);', [data.post_id, authUser, data.content, tStr]);
+        if (data.type === 'message') await db.query('INSERT INTO messages (username, timestamp, content, sender) VALUES ($1, $2, $3, $4);', [authUser, tStr, data.content, authUser]);
+        if (data.type === 'topic_message') await db.query('INSERT INTO topic_messages (topic_slug, username, timestamp, content, sender) VALUES ($1, $2, $3, $4, $5);', [data.target, authUser, tStr, data.content, authUser]);
+        if (data.type === 'dm') await db.query('INSERT INTO dms (sender, receiver, timestamp, content, username) VALUES ($1, $2, $3, $4, $5);', [authUser, data.target, tStr, data.content, authUser]);
+        if (data.type === 'neighborhood_post') await db.query('INSERT INTO neighborhood_posts (username, title, content, timestamp, sender) VALUES ($1, $2, $3, $4, $5);', [authUser, data.title, data.content, tStr, authUser]);
+        if (data.type === 'neighborhood_comment') await db.query('INSERT INTO neighborhood_comments (post_id, username, content, timestamp, sender) VALUES ($1, $2, $3, $4, $5);', [data.post_id, authUser, data.content, tStr, authUser]);
         broadcastSystemUpdate({ type: 'refresh_feed' });
       }
 
