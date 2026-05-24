@@ -97,7 +97,7 @@ initDatabase();
 
 const app = express()
 app.set('trust proxy', true);
-app.use(async (req, res, next) => {
+/* app.use(async (req, res, next) => {
   console.log('Received raw request')
   if (req.url.startsWith('/api')
     || !req.url.endsWith('.html')
@@ -111,7 +111,7 @@ app.use(async (req, res, next) => {
     console.log('Requested ' + req.url)
     res.status(200).sendFile('.' + req.url)
   }
-})
+}) */
 app.use(cors());
 app.use(express.json())
 
