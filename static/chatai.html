@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>unreader // kindle ai</title>
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <style>
         /* Stark Minimalist E-Ink Aesthetic */
         body {
@@ -63,7 +65,8 @@
             margin-bottom: 4px;
         }
 
-        .settings-panel input, .settings-panel textarea {
+        .settings-panel input,
+        .settings-panel textarea {
             width: 100%;
             padding: 8px;
             border: 1px solid #000000;
@@ -151,7 +154,7 @@
             color: #000000;
             border: 1px solid #888888;
         }
-        
+
         button.secondary:hover {
             background-color: #f2f2f2;
         }
@@ -163,12 +166,21 @@
         }
 
         @keyframes blink {
-            0% { opacity: 0.3; }
-            50% { opacity: 1; }
-            100% { opacity: 0.3; }
+            0% {
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.3;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <h1>📖 unreader // kindle ai</h1>
@@ -177,23 +189,29 @@
 
     <div class="settings-panel">
         <h3>⚙️ Connection & AI Settings</h3>
-        
+
         <div class="input-group">
             <label for="api-url-input">API Operator Endpoint URL:</label>
-            <input type="text" id="api-url-input" placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" onchange="saveSettings()">
+            <input type="text" id="api-url-input"
+                placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+                onchange="saveSettings()">
         </div>
-        
+
         <div class="input-group">
             <label for="api-key-input">Gemini API Key:</label>
-            <input type="password" id="api-key-input" placeholder="Enter your secret API key..." onchange="saveSettings()">
+            <input type="password" id="api-key-input" placeholder="Enter your secret API key..."
+                onchange="saveSettings()">
         </div>
 
         <div class="input-group">
             <label for="api-prompt-input">Custom AI System Instructions:</label>
-            <textarea id="api-prompt-input" placeholder="You are an AI made specifically for Kindles. You were programmed by KodiGamingYT..." onchange="saveSettings()"></textarea>
+            <textarea id="api-prompt-input"
+                placeholder="You are an AI made specifically for Kindles. You were programmed by KodiGamingYT..."
+                onchange="saveSettings()"></textarea>
         </div>
 
-        <span style="color:#666; font-size:10px; display:block; margin-top:5px;">All configurations and instructions are saved safely in your browser memory.</span>
+        <span style="color:#666; font-size:10px; display:block; margin-top:5px;">All configurations and instructions are
+            saved safely in your browser memory.</span>
     </div>
 
     <div id="chat-log"></div>
@@ -209,7 +227,7 @@
     <script>
         // Initialize Setup from Browser Storage
         let chatHistory = JSON.parse(localStorage.getItem('kindle_chat_history')) || [];
-        
+
         // Default system prompt if the user has never written one
         const defaultPrompt = "You are an AI made specifically for Kindles. You were programmed by KodiGamingYT. Your job is to strip away internet fluff and format the provided text into clear headers, minimalist bullet points, and neat spacing. Keep your answers short, direct, and highly readable for high-contrast e-ink screens.";
 
@@ -225,7 +243,7 @@
             const urlValue = document.getElementById('api-url-input').value.trim();
             const keyValue = document.getElementById('api-key-input').value.trim();
             const promptValue = document.getElementById('api-prompt-input').value.trim();
-            
+
             localStorage.setItem('kindle_api_url', urlValue);
             localStorage.setItem('kindle_api_key', keyValue);
             localStorage.setItem('kindle_system_prompt', promptValue);
@@ -241,13 +259,13 @@
             chatHistory.forEach(msg => {
                 const msgDiv = document.createElement('div');
                 msgDiv.classList.add('msg', msg.role);
-                
+
                 const header = document.createElement('div');
                 header.classList.add('msg-header');
                 header.innerText = msg.role === 'user' ? '● You' : '○ Kindle AI';
 
                 const body = document.createElement('div');
-                body.style.whiteSpace = "pre-wrap"; 
+                body.style.whiteSpace = "pre-wrap";
                 body.innerText = msg.text;
 
                 msgDiv.appendChild(header);
@@ -300,7 +318,7 @@
                 });
 
                 const data = await response.json();
-                
+
                 if (data.error) throw new Error(data.error.message);
 
                 const aiText = data.candidates[0].content.parts[0].text;
@@ -326,11 +344,12 @@
             renderHistory();
         }
 
-        document.getElementById('user-input').addEventListener('keydown', function(e) {
+        document.getElementById('user-input').addEventListener('keydown', function (e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 sendToGemini();
             }
         });
     </script>
 </body>
+
 </html>
