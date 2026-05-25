@@ -898,8 +898,8 @@
         var effectiveUsername =
           data.username || data.sender || 'UNKNOWN_NODE';
         var nameDisplay = DOMPurify.sanitize(
-          (data.is_admin ? 'ADMIN ' : data.is_moderator ? 'MOD ' : '') +
-          effectiveUsername
+          (data.is_admin ? 'ADMIN ' : data.is_moderator ? 'MOD ' : '')
+          + '@' + effectiveUsername
         );
         box.innerHTML =
           '<div class="nb-header" style="cursor:pointer;">@' +
@@ -942,8 +942,8 @@
               var cEffectiveUsername =
                 c.username || c.sender || 'UNKNOWN_NODE';
               var cName = DOMPurify.sanitize(
-                (c.is_admin ? 'ADMIN ' : c.is_moderator ? 'MOD ' : '') +
-                cEffectiveUsername
+                (c.is_admin ? 'ADMIN ' : c.is_moderator ? 'MOD ' : '')
+                + '@' + cEffectiveUsername
               );
               cDiv.innerHTML =
                 '<strong style="cursor:pointer;">@' +
