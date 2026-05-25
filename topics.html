@@ -697,67 +697,6 @@
   </div>
 
   <script type="text/javascript">
-    const DEBUG = false;
-    const DO_LOGGING = true;
-    var BACKEND_URL = DEBUG
-      ? 'http://localhost'
-      : 'https://unreader-v4yf.onrender.com';
-    var WS_URL = DEBUG
-      ? 'ws://localhost'
-      : 'wss://unreader-v4yf.onrender.com';
-
-    // Standardized token sharing & preference loader
-    function applySavedPreferences() {
-      if (
-        localStorage.getItem('unreader-token') &&
-        !localStorage.getItem('token')
-      ) {
-        localStorage.setItem('token', localStorage.getItem('unreader-token'));
-      }
-      if (
-        localStorage.getItem('unreader-username') &&
-        !localStorage.getItem('username')
-      ) {
-        localStorage.setItem(
-          'username',
-          localStorage.getItem('unreader-username'),
-        );
-      }
-      if (
-        localStorage.getItem('token') &&
-        !localStorage.getItem('unreader-token')
-      ) {
-        localStorage.setItem('unreader-token', localStorage.getItem('token'));
-      }
-      if (
-        localStorage.getItem('username') &&
-        !localStorage.getItem('unreader-username')
-      ) {
-        localStorage.setItem(
-          'unreader-username',
-          localStorage.getItem('username'),
-        );
-      }
-
-      if (localStorage.getItem('unreader-darkmode') === 'enabled') {
-        document.body.classList.add('dark-mode');
-      }
-      const savedContrast =
-        localStorage.getItem('unreader-contrast') || 'normal';
-      if (savedContrast !== 'normal') {
-        document.body.classList.add(`contrast-${savedContrast}`);
-      }
-      const savedFont = localStorage.getItem('unreader-font') || 'sans';
-      if (savedFont === 'mono') {
-        document.documentElement.style.setProperty(
-          '--body-font',
-          'monospace',
-        );
-        document.body.style.fontFamily = 'monospace';
-      }
-    }
-    applySavedPreferences();
-
     var token = localStorage.getItem('token');
     var myUsername = localStorage.getItem('username');
     var currentMode = 'topic';
@@ -1176,7 +1115,7 @@
       xhr.send();
     }
 
-    function sendMessage() {
+    async function sendMessage() {
       var input = document.getElementById('content');
       var text = input.value.trim();
       if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;

@@ -167,11 +167,14 @@ function broadcastSystemUpdate(payloadObj, filterFn = null) {
 }
 
 function getRosterPayload() {
-  const users = Array.from(activeClients.entries()).map(([u, c]) => ({
-    username: u,
-    mode: c.mode,
-    target: c.target
-  }));
+  const users = [];
+  activeClients.forEach((c, username) => {
+    users.push({
+      username: username,
+      mode: c.mode,
+      target: c.target
+    });
+  });
   return { type: 'roster_update', users };
 }
 
