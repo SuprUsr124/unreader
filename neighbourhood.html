@@ -880,6 +880,7 @@
       socket.onopen = function () {
         log('WS Link connected. Authenticating...');
         socket.send(JSON.stringify({ type: 'auth', token: token }));
+        socket.send(JSON.stringify({ type: 'switch_context', mode: 'neighborhood', target: '' }));
       };
       socket.onmessage = async function (event) {
         var data = JSON.parse(event.data);
@@ -931,10 +932,11 @@
         div.className = 'roster-user';
         var span = document.createElement('span');
         span.className = 'roster-name';
-        span.textContent = u;
-        (function (username) {
+        var context = u.mode === 'public' ? ' (Global)' : u.mode === 'dm' ? ' (DM @' + u.target + ')' : ' (' + u.target + ')';
+        span.textContent = u.username + context;
+        (function (user) {
           span.onclick = function () {
-            openProfileModal(username);
+            openProfileModal(user.username);
           };
         })(u);
         div.appendChild(span);

@@ -643,10 +643,11 @@
         div.className = 'roster-user';
         var span = document.createElement('span');
         span.className = 'roster-name';
-        span.textContent = u;
-        (function (username) {
+        var context = u.mode === 'public' ? ' (Global)' : u.mode === 'dm' ? ' (DM @' + u.target + ')' : ' (' + u.target + ')';
+        span.textContent = u.username + context;
+        (function (user) {
           span.onclick = function () {
-            openProfileModal(username);
+            openProfileModal(user.username);
           };
         })(u);
         div.appendChild(span);
@@ -700,6 +701,11 @@
       currentMode = mode;
       currentTarget = target || '';
       currentHistoryIndex = 0;
+      
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'switch_context', mode: mode, target: target }));
+      }
+      
       var items = document.getElementsByClassName('nav-item');
       for (var i = 0; i < items.length; i++) items[i].className = 'nav-item';
       if (mode === 'public')

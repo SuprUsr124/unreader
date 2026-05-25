@@ -150,17 +150,29 @@ async function authenticateToken(req, res, next) {
   }
 }
 
-const activeClients = new Map()
-function broadcastSystemUpdate(payloadObj) {
+const activeClients = new Map() // { username: { ws, mode, target } }
+
+function broadcastSystemUpdate(payloadObj, filterFn = null) {
   const msgStr = JSON.stringify(payloadObj);
-  activeClients.forEach((c, username) => {
-    if (c.readyState === WebSocket.OPEN) {
-      c.send(msgStr);
+  activeClients.forEach((client, username) => {
+    if (client.ws.readyState === WebSocket.OPEN) {
+      if (!filterFn || filterFn(client)) {
+        client.ws.send(msgStr);
+      }
     } else {
       log(`Pruning inactive connection: ${username}`);
       activeClients.delete(username);
     }
   });
+}
+
+function getRosterPayload() {
+  const users = Array.from(activeClients.entries()).map(([u, c]) => ({
+    username: u,
+    mode: c.mode,
+    target: c.target
+  }));
+  return { type: 'roster_update', users };
 }
 
 app.get('/dm-contacts', authenticateToken, async (req, res) => {
@@ -322,8 +334,8 @@ wss.on('connection', (ws, req) => {
             log(`WS Termination Triggered: Banned or Timed out user session`);
             ws.send(JSON.stringify({ type: 'terminated' })); ws.close(); return;
           }
-          activeClients.set(authUser, ws);
-          broadcastSystemUpdate({ type: 'roster_update', users: Array.from(activeClients.keys()) });
+          activeClients.set(authUser, { ws, mode: 'public', target: '' });
+          broadcastSystemUpdate(getRosterPayload());
           const topicsRes = await db.query('SELECT * FROM topics ORDER BY id DESC;');
           ws.send(JSON.stringify({ type: 'topics_update', topics: topicsRes.rows, user_roles: userRoles }));
         } catch (e) { log("WS Authentication Invalid:", e.message); ws.send(JSON.stringify({ type: 'terminated' })); }
@@ -331,8 +343,23 @@ wss.on('connection', (ws, req) => {
       }
       if (!authUser) return;
 
+      if (data.type === 'switch_context') {
+        const client = activeClients.get(authUser);
+        if (client) {
+          client.mode = data.mode;
+          client.target = data.target;
+          broadcastSystemUpdate(getRosterPayload());
+        }
+        return;
+      }
+
       if (['message', 'topic_message', 'dm', 'neighborhood_post', 'neighborhood_comment', 'create_topic'].includes(data.type)) {
         const tStr = String(Date.now());
+        const mode = data.type === 'topic_message' ? 'topic' : 
+                     data.type === 'dm' ? 'dm' :
+                     data.type === 'neighborhood_post' || data.type === 'neighborhood_comment' ? 'neighborhood' : 'public';
+        const target = data.target || data.slug || '';
+        
         if (data.type === 'message') {
           const content = sanitize(data.content);
           await db.query('INSERT INTO messages (username, timestamp, content, sender) VALUES ($1, $2, $3, $4);', [authUser, tStr, content, authUser]);
@@ -362,7 +389,8 @@ wss.on('connection', (ws, req) => {
           const slug = title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 50);
           await db.query('INSERT INTO topics (slug, title, username, timestamp) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING;', [slug, title, authUser, tStr]);
         }
-        broadcastSystemUpdate({ type: 'refresh_feed' });
+        
+        broadcastSystemUpdate({ type: 'refresh_feed' }, (c) => c.mode === mode && c.target === target);
       }
 
       if (data.type === 'mod_delete' || data.type === 'mod_restore') {

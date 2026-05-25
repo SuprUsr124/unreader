@@ -1082,6 +1082,11 @@
       currentMode = mode;
       currentTarget = target || '';
       currentHistoryIndex = 0;
+      
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'switch_context', mode: mode, target: target }));
+      }
+      
       var items = document.getElementsByClassName('nav-item');
       for (var i = 0; i < items.length; i++) items[i].className = 'nav-item';
       if (mode === 'public')
