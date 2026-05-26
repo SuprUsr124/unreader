@@ -159,6 +159,7 @@
   border-top: var(--border);
   z-index: 20;
   height: max-content;
+  align-items: stretch;
 }
 
 #content {
