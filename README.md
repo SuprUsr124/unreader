@@ -3,7 +3,9 @@
 A retro, brutalist, e-ink style Bulletin Board System (BBS) designed for ultra-low latency, crisp legibility, and high modularity. Un-Reader provides a classic, text-heavy community experience optimized for standard browsers as well as low-refresh-rate devices like e-readers.
 
 ---
-
+## Usage
+go to: https://unreader-ui.onrender.com
+or alternative url on GitHub pages: https://tock-dev.guthub.io/unreader
 ## Key Features
 
 - **Unified Dashboard Portal**: The central entrypoint that handles authentication, live session tracking, and display preferences.
