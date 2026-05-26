@@ -34,7 +34,6 @@ body {
   flex-direction: column;
   height: 95vh;
   width: 98vw;
-  max-width: 950px;
   position: relative;
 }
 

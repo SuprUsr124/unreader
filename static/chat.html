@@ -13,10 +13,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.2/purify.min.js"></script>
   <script src="common.js"></script>
   <style type="text/css">
-    #sidebar-cell {
-      overflow-y: auto;
-    }
-
     #roster-list,
     #dm-list {
       max-height: 150px;
@@ -102,14 +98,6 @@
       border-style: solid !important;
     }
 
-    #pagination-header-bar {
-      padding: 6px;
-      background: #eee;
-      border-bottom: var(--border);
-      text-align: center;
-      height: 26px;
-    }
-
     .page-btn {
       background: #ffffff;
       border: var(--border);
@@ -125,57 +113,6 @@
       margin: 0 10px;
       font-weight: bold;
       font-size: 12px;
-    }
-
-    #chat-scroll-wrapper {
-      position: absolute;
-      top: 40px;
-      bottom: 60px;
-      left: 0;
-      right: 0;
-      overflow-y: auto;
-      padding: 12px;
-    }
-
-    #input-bar-container {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      min-height: 52px;
-      background-color: #eee;
-      padding: 8px;
-      box-sizing: border-box;
-      border-top: var(--border);
-      z-index: 20;
-    }
-
-    #content {
-      float: left;
-      width: 78%;
-      padding: 6px;
-      font-size: 13px;
-      font-family: monospace;
-      border: var(--border);
-      outline: none;
-      background: white;
-      box-sizing: border-box;
-      height: 32px;
-      resize: none;
-      overflow-y: hidden;
-    }
-
-    #send {
-      float: right;
-      width: 18%;
-      height: 32px;
-      cursor: pointer;
-      font-family: monospace;
-      font-weight: bold;
-      font-size: 12px;
-      background: white;
-      border: var(--border);
-      box-shadow: 2px 2px 0 black;
     }
 
     .message-container {
@@ -446,31 +383,30 @@
       <span id="user-display" onclick="openProfileModal(myUsername)"></span>
     </div>
 
-    <table id="workspace-table">
-      <tr>
-        <td id="sidebar-cell">
-          <div class="panel-header">Main Spaces</div>
-          <div class="nav-item nav-item-active" id="nav-public" onclick="switchChannel('public', '')">
-            All of Unreader Chat
-          </div>
+    <div id="workspace-table">
+      <div id="sidebar-cell">
+        <div class="panel-header">Main Spaces</div>
+        <div class="nav-item nav-item-active" id="nav-public" onclick="switchChannel('public', '')">
+          All of Unreader Chat
+        </div>
 
-          <div class="panel-header">Direct Messages</div>
-          <div class="sidebar-input-container">
-            <input type="text" id="dm-target-input" class="sidebar-input" placeholder="Username..." />
-            <button class="sidebar-btn" onclick="triggerAddDM()">CHAT</button>
-          </div>
-          <div id="dm-list"></div>
+        <div class="panel-header">Direct Messages</div>
+        <div class="sidebar-input-container">
+          <input type="text" id="dm-target-input" class="sidebar-input" placeholder="Username..." />
+          <button class="sidebar-btn" onclick="triggerAddDM()">CHAT</button>
+        </div>
+        <div id="dm-list"></div>
 
-          <div class="panel-header">Active Users</div>
-          <div id="roster-list"></div>
+        <div class="panel-header">Active Users</div>
+        <div id="roster-list"></div>
 
-          <div class="panel-header">System Operations</div>
-          <div id="settings-box-container" style="padding: 6px">
-            <div id="mod-toggle-container" style="display: none; margin-bottom: 4px">
-              <button id="mod-mode-btn" class="mod-indicator-btn" onclick="toggleModMode()">
-                MOD MODE: OFF
-              </button>
-              <button id="modmenu-link-btn" style="
+        <div class="panel-header">System Operations</div>
+        <div id="settings-box-container" style="padding: 6px">
+          <div id="mod-toggle-container" style="display: none; margin-bottom: 4px">
+            <button id="mod-mode-btn" class="mod-indicator-btn" onclick="toggleModMode()">
+              MOD MODE: OFF
+            </button>
+            <button id="modmenu-link-btn" style="
                     width: 95%;
                     font-family: monospace;
                     font-size: 10px;
@@ -479,586 +415,584 @@
                     border: 1px solid black;
                     background: white;
                   " onclick="window.location.href = 'modmenu.html'">
-                MODERATION APP
-              </button>
-            </div>
-          </div>
-        </td>
-        <td id="chat-cell">
-          <div id="pagination-header-bar">
-            <button class="page-btn" onclick="jumpPage(-1)">
-              &lt; NEWER
+              MODERATION APP
             </button>
-            <span id="page-display-index">PAGE: 0</span>
-            <button class="page-btn" onclick="jumpPage(1)">OLDER &gt;</button>
           </div>
+        </div>
+      </div>
+      <div id="chat-cell">
+        <div id="pagination-header-bar">
+          <button class="page-btn" onclick="jumpPage(-1)">
+            &lt; NEWER
+          </button>
+          <span id="page-display-index">PAGE: 0</span>
+          <button class="page-btn" onclick="jumpPage(1)">OLDER &gt;</button>
+        </div>
 
-          <div id="chat-scroll-wrapper"></div>
+        <div id="chat-scroll-wrapper"></div>
 
-          <div id="input-bar-container">
-            <textarea id="content" placeholder="Type message here..." autocomplete="off"></textarea>
-            <button id="send">SEND</button>
-          </div>
-        </td>
-      </tr>
-    </table>
-  </div>
+        <div id="input-bar-container">
+          <textarea id="content" placeholder="Type message here..." autocomplete="off"></textarea>
+          <button id="send">SEND</button>
+        </div>
+      </div>
+    </div>
 
-  <script type="text/javascript">
-    var token = localStorage.getItem('token');
-    var myUsername = localStorage.getItem('username');
-    var currentMode = 'public';
-    var currentTarget = '';
-    var socket = null;
-    var isRegisterMode = false;
-    var currentHistoryIndex = 0;
-    var modModeActive = false;
-    var userRoles = { is_admin: false, is_moderator: false };
+    <script type="text/javascript">
+      var token = localStorage.getItem('token');
+      var myUsername = localStorage.getItem('username');
+      var currentMode = 'public';
+      var currentTarget = '';
+      var socket = null;
+      var isRegisterMode = false;
+      var currentHistoryIndex = 0;
+      var modModeActive = false;
+      var userRoles = { is_admin: false, is_moderator: false };
 
-    function toggleModMode() {
-      modModeActive = !modModeActive;
-      log('Mod mode toggle state:', modModeActive);
-      var btn = document.getElementById('mod-mode-btn');
-      btn.textContent = modModeActive ? 'MOD MODE: ACTIVE' : 'MOD MODE: OFF';
-      btn.className = modModeActive
-        ? 'mod-indicator-btn mod-indicator-active'
-        : 'mod-indicator-btn';
-      loadHistory();
-    }
+      function toggleModMode() {
+        modModeActive = !modModeActive;
+        log('Mod mode toggle state:', modModeActive);
+        var btn = document.getElementById('mod-mode-btn');
+        btn.textContent = modModeActive ? 'MOD MODE: ACTIVE' : 'MOD MODE: OFF';
+        btn.className = modModeActive
+          ? 'mod-indicator-btn mod-indicator-active'
+          : 'mod-indicator-btn';
+        loadHistory();
+      }
 
-    document.getElementById('auth-toggle').onclick = function () {
-      isRegisterMode = !isRegisterMode;
-      log('Auth mode toggled. isRegisterMode:', isRegisterMode);
-      document.getElementById('auth-title').textContent = isRegisterMode
-        ? 'REGISTER'
-        : 'LOGIN';
-      this.textContent = isRegisterMode
-        ? 'Already have an account? Login'
-        : 'Need an account? Register';
-    };
+      document.getElementById('auth-toggle').onclick = function () {
+        isRegisterMode = !isRegisterMode;
+        log('Auth mode toggled. isRegisterMode:', isRegisterMode);
+        document.getElementById('auth-title').textContent = isRegisterMode
+          ? 'REGISTER'
+          : 'LOGIN';
+        this.textContent = isRegisterMode
+          ? 'Already have an account? Login'
+          : 'Need an account? Register';
+      };
 
-    document.getElementById('auth-submit-btn').onclick = async function () {
-      var username = document.getElementById('auth-user').value.trim();
-      var password = document.getElementById('auth-pass').value;
-      if (!username || !password)
-        return await unAlert('Fill in all log credentials.');
-      var url = isRegisterMode ? '/api/register' : '/api/login';
-      log('Auth submit. endpoint:', url, 'user:', username);
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', BACKEND_URL + url, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.onreadystatechange = async function () {
-        if (xhr.readyState === 4) {
-          log('Auth XHR complete. status:', xhr.status);
-          if (xhr.status === 200) {
-            try {
-              var data = JSON.parse(xhr.responseText);
-              localStorage.setItem('token', data.token);
-              localStorage.setItem('username', data.username);
-              token = data.token;
-              myUsername = data.username;
-              applySavedPreferences();
-              initApp(false);
-            } catch (e) {
-              log('Auth JSON parse error:', e);
-              await unAlert('Server returned an invalid packet signature.');
-            }
-          } else {
-            log('Auth failed. buffer:', xhr.responseText);
-            try {
-              var errData = JSON.parse(xhr.responseText);
-              await unAlert('Server error: ' + (errData.error || 'Access Denied'));
-            } catch (e) {
-              await unAlert('Structural connection failure.');
+      document.getElementById('auth-submit-btn').onclick = async function () {
+        var username = document.getElementById('auth-user').value.trim();
+        var password = document.getElementById('auth-pass').value;
+        if (!username || !password)
+          return await unAlert('Fill in all log credentials.');
+        var url = isRegisterMode ? '/api/register' : '/api/login';
+        log('Auth submit. endpoint:', url, 'user:', username);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', BACKEND_URL + url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = async function () {
+          if (xhr.readyState === 4) {
+            log('Auth XHR complete. status:', xhr.status);
+            if (xhr.status === 200) {
+              try {
+                var data = JSON.parse(xhr.responseText);
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('username', data.username);
+                token = data.token;
+                myUsername = data.username;
+                applySavedPreferences();
+                initApp(false);
+              } catch (e) {
+                log('Auth JSON parse error:', e);
+                await unAlert('Server returned an invalid packet signature.');
+              }
+            } else {
+              log('Auth failed. buffer:', xhr.responseText);
+              try {
+                var errData = JSON.parse(xhr.responseText);
+                await unAlert('Server error: ' + (errData.error || 'Access Denied'));
+              } catch (e) {
+                await unAlert('Structural connection failure.');
+              }
             }
           }
+        };
+        xhr.send(JSON.stringify({ username: username, password: password }));
+      };
+
+      function initApp(secondTry) {
+        log('Booting application logic layers.');
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('user-display').textContent = '@' + myUsername;
+
+        if (socket) {
+          try {
+            socket.close();
+          } catch (e) { }
         }
-      };
-      xhr.send(JSON.stringify({ username: username, password: password }));
-    };
-
-    function initApp(secondTry) {
-      log('Booting application logic layers.');
-      document.getElementById('auth-screen').style.display = 'none';
-      document.getElementById('user-display').textContent = '@' + myUsername;
-
-      if (socket) {
-        try {
-          socket.close();
-        } catch (e) { }
-      }
-      log('Opening WS link:', WS_URL);
-      socket = new WebSocket(WS_URL);
-      socket.onopen = function () {
-        log('WS Link connected. Authenticating...');
-        socket.send(JSON.stringify({ type: 'auth', token: token }));
-      };
-      socket.onmessage = async function (event) {
-        var data = JSON.parse(event.data);
-        log('Incoming packet:', data.type);
-        if (data.type === 'terminated') {
-          await unAlert(data.reason || 'Session expired.');
+        log('Opening WS link:', WS_URL);
+        socket = new WebSocket(WS_URL);
+        socket.onopen = function () {
+          log('WS Link connected. Authenticating...');
+          socket.send(JSON.stringify({ type: 'auth', token: token }));
+        };
+        socket.onmessage = async function (event) {
+          var data = JSON.parse(event.data);
+          log('Incoming packet:', data.type);
+          if (data.type === 'terminated') {
+            await unAlert(data.reason || 'Session expired.');
+            localStorage.clear();
+            window.location.reload();
+            return;
+          }
+          if (data.type === 'error_alert') {
+            await unAlert(data.message);
+            return;
+          }
+          if (data.type === 'refresh_feed') {
+            log('Broadcast: refresh_feed received.');
+            loadHistory();
+            return;
+          }
+          if (data.type === 'roster_update') {
+            renderUserRoster(data.users);
+            return;
+          }
+          if (data.type === 'topics_update') {
+            if (data.user_roles) {
+              userRoles = data.user_roles;
+              log('Roles updated:', userRoles);
+              if (userRoles.is_admin || userRoles.is_moderator) {
+                document.getElementById('mod-toggle-container').style.display =
+                  'block';
+                localStorage.setItem('unreader-rank', 'mod');
+              } else {
+                localStorage.setItem('unreader-rank', 'user');
+              }
+            }
+            return;
+          }
+          if (currentHistoryIndex === 0) loadHistory();
+        };
+        let exit = false;
+        socket.onclose = function () {
+          log('WS Link disconnected');
+          if (!secondTry || secondTry === false)
+            setTimeout(initApp, 5000, true);
+          else
+            exit = true;
+        }
+        if (exit) {
           localStorage.clear();
           window.location.reload();
-          return;
         }
-        if (data.type === 'error_alert') {
-          await unAlert(data.message);
-          return;
+        loadDMContacts();
+        loadHistory();
+      }
+
+      function renderUserRoster(userList) {
+        log('Showing users:', userList);
+        var container = document.getElementById('roster-list');
+        container.innerHTML = '';
+        for (var i = 0; i < userList.length; i++) {
+          var u = userList[i];
+          var div = document.createElement('div');
+          div.className = 'roster-user';
+          var span = document.createElement('span');
+          span.className = 'roster-name';
+          var context = u.mode === 'public' ? ' (Global)' : u.mode === 'dm' ? ' (DM @' + u.target + ')' : ' (' + u.target + ')';
+          span.textContent = u.username + context;
+          (function (user) {
+            span.onclick = function () {
+              openProfileModal(user.username);
+            };
+          })(u);
+          div.appendChild(span);
+          container.appendChild(div);
         }
-        if (data.type === 'refresh_feed') {
-          log('Broadcast: refresh_feed received.');
-          loadHistory();
-          return;
-        }
-        if (data.type === 'roster_update') {
-          renderUserRoster(data.users);
-          return;
-        }
-        if (data.type === 'topics_update') {
-          if (data.user_roles) {
-            userRoles = data.user_roles;
-            log('Roles updated:', userRoles);
-            if (userRoles.is_admin || userRoles.is_moderator) {
-              document.getElementById('mod-toggle-container').style.display =
-                'block';
-              localStorage.setItem('unreader-rank', 'mod');
-            } else {
-              localStorage.setItem('unreader-rank', 'user');
+      }
+
+      function loadDMContacts() {
+        log('Syncing DM contacts.');
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', BACKEND_URL + '/dm-contacts', true);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
+            var contacts = JSON.parse(xhr.responseText);
+            for (var i = 0; i < contacts.length; i++) {
+              ensureDMNavOption(contacts[i]);
             }
           }
+        };
+        xhr.send();
+      }
+
+      function ensureDMNavOption(username) {
+        if (
+          document.getElementById('nav-dm-' + username) ||
+          username === myUsername
+        )
+          return;
+        var item = document.createElement('div');
+        item.className = 'nav-item';
+        item.id = 'nav-dm-' + username;
+        item.textContent = '💬 ' + username;
+        item.onclick = function () {
+          switchChannel('dm', username);
+        };
+        document.getElementById('dm-list').appendChild(item);
+      }
+
+      function triggerAddDM() {
+        var inp = document.getElementById('dm-target-input');
+        var target = inp.value.trim();
+        if (!target || target === myUsername) return;
+        ensureDMNavOption(target);
+        switchChannel('dm', target);
+        inp.value = '';
+      }
+
+      function switchChannel(mode, target) {
+        log('Switching UI space. mode:', mode, 'target:', target);
+        currentMode = mode;
+        currentTarget = target || '';
+        currentHistoryIndex = 0;
+
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'switch_context', mode: mode, target: target }));
+        }
+
+        var items = document.getElementsByClassName('nav-item');
+        for (var i = 0; i < items.length; i++) items[i].className = 'nav-item';
+        if (mode === 'public')
+          document.getElementById('nav-public').className =
+            'nav-item nav-item-active';
+        else if (mode === 'dm') {
+          ensureDMNavOption(target);
+          document.getElementById('nav-dm-' + target).className =
+            'nav-item nav-item-active';
+        }
+        loadHistory();
+      }
+
+      function appendMessage(data) {
+        log('APPEND_MESSAGE payload details:', JSON.stringify(data));
+        var chatWrapper = document.getElementById('chat-scroll-wrapper');
+        var containerDiv = document.createElement('div');
+        containerDiv.className = 'message-container';
+        var msgDiv = document.createElement('div');
+        msgDiv.id = 'msg-id-' + data.id;
+        var effectiveUsername = data.username || data.sender || 'UNKNOWN_NODE';
+        var isMe = effectiveUsername === myUsername;
+        msgDiv.style.float = isMe ? 'right' : 'left';
+
+        var styleClass = 'message ';
+        if (data.is_deleted) styleClass += 'purged-msg';
+        else {
+          if (data.is_admin) styleClass += 'admin-msg';
+          else if (data.is_moderator) styleClass += 'mod-msg';
+          else styleClass += isMe ? 'my-msg' : 'other-msg';
+        }
+        msgDiv.className = styleClass;
+
+        var timeStr = formatTimeToken(data.timestamp);
+        var meta = document.createElement('div');
+        meta.className = 'message-meta';
+        meta.style.cursor = 'pointer';
+        var nameDisplay =
+          (data.is_admin ? 'ADMIN ' : data.is_moderator ? 'MOD ' : '')
+          + '@' + effectiveUsername;
+        meta.textContent = nameDisplay + ' • ' + timeStr;
+        (function (username) {
+          meta.onclick = function () {
+            openProfileModal(username);
+          };
+        })(effectiveUsername);
+
+        var txtBody = document.createElement('div');
+        txtBody.className = 'message-text';
+        msgDiv.appendChild(meta);
+        msgDiv.appendChild(txtBody);
+
+        if (data.is_deleted) {
+          txtBody.innerHTML = '<em>[MESSAGE PURGED]</em>';
+        } else {
+          txtBody.innerHTML = parseMarkup(data.content);
+          if (isMe && data.id !== -1) {
+            var selfDelBtn = document.createElement('button');
+            selfDelBtn.className = 'user-delete-btn';
+            selfDelBtn.textContent = 'X';
+            selfDelBtn.onclick = async function () {
+              if (await unConfirm('Delete message?'))
+                sendModAction('mod_delete', data.id);
+            };
+            msgDiv.appendChild(selfDelBtn);
+          }
+        }
+        containerDiv.appendChild(msgDiv);
+        injectModTray(containerDiv, data, isMe);
+        chatWrapper.appendChild(containerDiv);
+        chatWrapper.scrollTop = chatWrapper.scrollHeight;
+      }
+
+      function injectModTray(targetNode, data, isMe) {
+        if (
+          (!userRoles.is_admin && !userRoles.is_moderator) ||
+          !modModeActive ||
+          data.id === -1
+        )
+          return;
+        var trayDiv = document.createElement('div');
+        trayDiv.className = 'mod-action-tray';
+        trayDiv.style.float = isMe ? 'right' : 'left';
+        trayDiv.style.clear = 'both';
+
+        if (!data.is_deleted) {
+          var dBtn = document.createElement('button');
+          dBtn.className = 'mod-tray-btn';
+          dBtn.textContent = 'PURGE';
+          dBtn.onclick = async function () {
+            var r = await unPrompt('Reason for purge?');
+            if (r !== null) sendModAction('mod_delete', data.id, r);
+          };
+          trayDiv.appendChild(dBtn);
+        }
+        else {
+          if (
+            userRoles.is_admin ||
+            (userRoles.is_moderator && data.deleted_by === myUsername)
+          ) {
+            var rBtn = document.createElement('button');
+            rBtn.className = 'mod-tray-btn';
+            rBtn.textContent = 'RESTORE';
+            rBtn.onclick = function () {
+              log('Sending restore packet for id:', data.id);
+              sendModAction('mod_restore', data.id);
+            };
+            trayDiv.appendChild(rBtn);
+          }
+        }
+        targetNode.appendChild(trayDiv);
+      }
+
+      function sendModAction(type, id, reason) {
+        log('Dispatching moderator action packet:', type);
+        socket.send(
+          JSON.stringify({
+            type: type,
+            id: id,
+            channel: currentMode,
+            reason: reason,
+          }),
+        );
+      }
+
+      function jumpPage(val) {
+        currentHistoryIndex = Math.max(0, currentHistoryIndex + val);
+        loadHistory();
+      }
+
+      function loadHistory() {
+        log(
+          'Refreshing data view. space:',
+          currentMode,
+          'index:',
+          currentHistoryIndex,
+        );
+        var wrapper = document.getElementById('chat-scroll-wrapper');
+        wrapper.innerHTML = '';
+        var xhr = new XMLHttpRequest();
+        var endpoint = '/history?index=';
+        if (currentMode === 'dm')
+          endpoint = '/dm-history?target=' + currentTarget + '&index=';
+        xhr.open('GET', BACKEND_URL + endpoint + currentHistoryIndex, true);
+        if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
+            log('History stream synced.');
+            var data = JSON.parse(xhr.responseText);
+            document.getElementById('page-display-index').textContent =
+              'PAGE: ' + currentHistoryIndex;
+            for (var i = 0; i < data.length; i++) {
+              appendMessage(data[i]);
+            }
+          }
+        };
+        xhr.send();
+      }
+
+      function sendMessage() {
+        var input = document.getElementById('content');
+        var text = input.value.trim();
+        if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+        log('Dispatching message packet stream.');
+        socket.send(
+          JSON.stringify({
+            type: currentMode === 'public' ? 'message' : 'dm',
+            content: text,
+            target: currentTarget,
+          }),
+        );
+        input.value = '';
+        input.style.height = '32px';
+      }
+
+      document.getElementById('send').onclick = sendMessage;
+      document.getElementById('content').onkeydown = function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      };
+      document.getElementById('content').oninput = function () {
+        this.style.height = 'auto';
+        this.style.height = this.scrollHeight + 'px';
+      };
+
+      function openProfileModal(targetUser) {
+        log('Pulling profile metadata for:', targetUser);
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', BACKEND_URL + '/api/profile/' + targetUser, true);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
+            var p = JSON.parse(xhr.responseText);
+            showProfileInModal(p);
+          }
+        };
+        xhr.send();
+      }
+
+      function showProfileInModal(p) {
+        log('Profile modal view active.');
+        if (!p) {
+          document.getElementById('modal-overlay').style.display = 'block';
           return;
         }
-        if (currentHistoryIndex === 0) loadHistory();
-      };
-      let exit = false;
-      socket.onclose = function () {
-        log('WS Link disconnected');
-        if (!secondTry || secondTry === false)
-          setTimeout(initApp, 5000, true);
-        else
-          exit = true;
-      }
-      if (exit) {
-        localStorage.clear();
-        window.location.reload();
-      }
-      loadDMContacts();
-      loadHistory();
-    }
 
-    function renderUserRoster(userList) {
-      log('Showing users:', userList);
-      var container = document.getElementById('roster-list');
-      container.innerHTML = '';
-      for (var i = 0; i < userList.length; i++) {
-        var u = userList[i];
-        var div = document.createElement('div');
-        div.className = 'roster-user';
-        var span = document.createElement('span');
-        span.className = 'roster-name';
-        var context = u.mode === 'public' ? ' (Global)' : u.mode === 'dm' ? ' (DM @' + u.target + ')' : ' (' + u.target + ')';
-        span.textContent = u.username + context;
-        (function (user) {
-          span.onclick = function () {
-            openProfileModal(user.username);
-          };
-        })(u);
-        div.appendChild(span);
-        container.appendChild(div);
-      }
-    }
+        document.getElementById('info-username').textContent = p.username;
+        document.getElementById('info-location').textContent = p.location;
+        document.getElementById('info-bio').textContent = p.bio;
+        document.getElementById('info-avatar').textContent = p.avatar_emoji;
 
-    function loadDMContacts() {
-      log('Syncing DM contacts.');
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', BACKEND_URL + '/dm-contacts', true);
-      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-          var contacts = JSON.parse(xhr.responseText);
-          for (var i = 0; i < contacts.length; i++) {
-            ensureDMNavOption(contacts[i]);
-          }
-        }
-      };
-      xhr.send();
-    }
-
-    function ensureDMNavOption(username) {
-      if (
-        document.getElementById('nav-dm-' + username) ||
-        username === myUsername
-      )
-        return;
-      var item = document.createElement('div');
-      item.className = 'nav-item';
-      item.id = 'nav-dm-' + username;
-      item.textContent = '💬 ' + username;
-      item.onclick = function () {
-        switchChannel('dm', username);
-      };
-      document.getElementById('dm-list').appendChild(item);
-    }
-
-    function triggerAddDM() {
-      var inp = document.getElementById('dm-target-input');
-      var target = inp.value.trim();
-      if (!target || target === myUsername) return;
-      ensureDMNavOption(target);
-      switchChannel('dm', target);
-      inp.value = '';
-    }
-
-    function switchChannel(mode, target) {
-      log('Switching UI space. mode:', mode, 'target:', target);
-      currentMode = mode;
-      currentTarget = target || '';
-      currentHistoryIndex = 0;
-
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'switch_context', mode: mode, target: target }));
-      }
-
-      var items = document.getElementsByClassName('nav-item');
-      for (var i = 0; i < items.length; i++) items[i].className = 'nav-item';
-      if (mode === 'public')
-        document.getElementById('nav-public').className =
-          'nav-item nav-item-active';
-      else if (mode === 'dm') {
-        ensureDMNavOption(target);
-        document.getElementById('nav-dm-' + target).className =
-          'nav-item nav-item-active';
-      }
-      loadHistory();
-    }
-
-    function appendMessage(data) {
-      log('APPEND_MESSAGE payload details:', JSON.stringify(data));
-      var chatWrapper = document.getElementById('chat-scroll-wrapper');
-      var containerDiv = document.createElement('div');
-      containerDiv.className = 'message-container';
-      var msgDiv = document.createElement('div');
-      msgDiv.id = 'msg-id-' + data.id;
-      var effectiveUsername = data.username || data.sender || 'UNKNOWN_NODE';
-      var isMe = effectiveUsername === myUsername;
-      msgDiv.style.float = isMe ? 'right' : 'left';
-
-      var styleClass = 'message ';
-      if (data.is_deleted) styleClass += 'purged-msg';
-      else {
-        if (data.is_admin) styleClass += 'admin-msg';
-        else if (data.is_moderator) styleClass += 'mod-msg';
-        else styleClass += isMe ? 'my-msg' : 'other-msg';
-      }
-      msgDiv.className = styleClass;
-
-      var timeStr = formatTimeToken(data.timestamp);
-      var meta = document.createElement('div');
-      meta.className = 'message-meta';
-      meta.style.cursor = 'pointer';
-      var nameDisplay =
-        (data.is_admin ? 'ADMIN ' : data.is_moderator ? 'MOD ' : '')
-        + '@' + effectiveUsername;
-      meta.textContent = nameDisplay + ' • ' + timeStr;
-      (function (username) {
-        meta.onclick = function () {
-          openProfileModal(username);
-        };
-      })(effectiveUsername);
-
-      var txtBody = document.createElement('div');
-      txtBody.className = 'message-text';
-      msgDiv.appendChild(meta);
-      msgDiv.appendChild(txtBody);
-
-      if (data.is_deleted) {
-        txtBody.innerHTML = '<em>[MESSAGE PURGED]</em>';
-      } else {
-        txtBody.innerHTML = parseMarkup(data.content);
-        if (isMe && data.id !== -1) {
-          var selfDelBtn = document.createElement('button');
-          selfDelBtn.className = 'user-delete-btn';
-          selfDelBtn.textContent = 'X';
-          selfDelBtn.onclick = async function () {
-            if (await unConfirm('Delete message?'))
-              sendModAction('mod_delete', data.id);
-          };
-          msgDiv.appendChild(selfDelBtn);
-        }
-      }
-      containerDiv.appendChild(msgDiv);
-      injectModTray(containerDiv, data, isMe);
-      chatWrapper.appendChild(containerDiv);
-      chatWrapper.scrollTop = chatWrapper.scrollHeight;
-    }
-
-    function injectModTray(targetNode, data, isMe) {
-      if (
-        (!userRoles.is_admin && !userRoles.is_moderator) ||
-        !modModeActive ||
-        data.id === -1
-      )
-        return;
-      var trayDiv = document.createElement('div');
-      trayDiv.className = 'mod-action-tray';
-      trayDiv.style.float = isMe ? 'right' : 'left';
-      trayDiv.style.clear = 'both';
-
-      if (!data.is_deleted) {
-        var dBtn = document.createElement('button');
-        dBtn.className = 'mod-tray-btn';
-        dBtn.textContent = 'PURGE';
-        dBtn.onclick = async function () {
-          var r = await unPrompt('Reason for purge?');
-          if (r !== null) sendModAction('mod_delete', data.id, r);
-        };
-        trayDiv.appendChild(dBtn);
-      }
-      else {
-        if (
-          userRoles.is_admin ||
-          (userRoles.is_moderator && data.deleted_by === myUsername)
-        ) {
-          var rBtn = document.createElement('button');
-          rBtn.className = 'mod-tray-btn';
-          rBtn.textContent = 'RESTORE';
-          rBtn.onclick = function () {
-            log('Sending restore packet for id:', data.id);
-            sendModAction('mod_restore', data.id);
-          };
-          trayDiv.appendChild(rBtn);
-        }
-      }
-      targetNode.appendChild(trayDiv);
-    }
-
-    function sendModAction(type, id, reason) {
-      log('Dispatching moderator action packet:', type);
-      socket.send(
-        JSON.stringify({
-          type: type,
-          id: id,
-          channel: currentMode,
-          reason: reason,
-        }),
-      );
-    }
-
-    function jumpPage(val) {
-      currentHistoryIndex = Math.max(0, currentHistoryIndex + val);
-      loadHistory();
-    }
-
-    function loadHistory() {
-      log(
-        'Refreshing data view. space:',
-        currentMode,
-        'index:',
-        currentHistoryIndex,
-      );
-      var wrapper = document.getElementById('chat-scroll-wrapper');
-      wrapper.innerHTML = '';
-      var xhr = new XMLHttpRequest();
-      var endpoint = '/history?index=';
-      if (currentMode === 'dm')
-        endpoint = '/dm-history?target=' + currentTarget + '&index=';
-      xhr.open('GET', BACKEND_URL + endpoint + currentHistoryIndex, true);
-      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-          log('History stream synced.');
-          var data = JSON.parse(xhr.responseText);
-          document.getElementById('page-display-index').textContent =
-            'PAGE: ' + currentHistoryIndex;
-          for (var i = 0; i < data.length; i++) {
-            appendMessage(data[i]);
-          }
-        }
-      };
-      xhr.send();
-    }
-
-    function sendMessage() {
-      var input = document.getElementById('content');
-      var text = input.value.trim();
-      if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
-      log('Dispatching message packet stream.');
-      socket.send(
-        JSON.stringify({
-          type: currentMode === 'public' ? 'message' : 'dm',
-          content: text,
-          target: currentTarget,
-        }),
-      );
-      input.value = '';
-      input.style.height = '32px';
-    }
-
-    document.getElementById('send').onclick = sendMessage;
-    document.getElementById('content').onkeydown = function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    };
-    document.getElementById('content').oninput = function () {
-      this.style.height = 'auto';
-      this.style.height = this.scrollHeight + 'px';
-    };
-
-    function openProfileModal(targetUser) {
-      log('Pulling profile metadata for:', targetUser);
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', BACKEND_URL + '/api/profile/' + targetUser, true);
-      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-          var p = JSON.parse(xhr.responseText);
-          showProfileInModal(p);
-        }
-      };
-      xhr.send();
-    }
-
-    function showProfileInModal(p) {
-      log('Profile modal view active.');
-      if (!p) {
-        document.getElementById('modal-overlay').style.display = 'block';
-        return;
-      }
-
-      document.getElementById('info-username').textContent = p.username;
-      document.getElementById('info-location').textContent = p.location;
-      document.getElementById('info-bio').textContent = p.bio;
-      document.getElementById('info-avatar').textContent = p.avatar_emoji;
-
-      var isSelf = p.username === myUsername;
-      document.getElementById('info-edit-controls').style.display = isSelf
-        ? 'block'
-        : 'none';
-      document.getElementById('info-dm-btn').style.display = isSelf
-        ? 'none'
-        : 'block';
-      document.getElementById('info-dm-btn').onclick = function () {
-        closeInfoModal();
-        switchChannel('dm', p.username);
-      };
-
-      if (isSelf) {
-        document.getElementById('edit-avatar').value = p.avatar_emoji;
-        document.getElementById('edit-location').value = p.location;
-        document.getElementById('edit-bio').value = p.bio;
-        document.getElementById('change-pass-current').value = '';
-        document.getElementById('change-pass-new').value = '';
-      }
-
-      if (userRoles.is_admin) {
-        document.getElementById('admin-controls').style.display = 'block';
-        document.getElementById('admin-ban-btn').style.display =
-          'inline-block';
-        document.getElementById('admin-pardon-btn').style.display =
-          'inline-block';
-        document.getElementById('admin-ban-btn').onclick = async function () {
-          if (await unConfirm('Ban ' + p.username + '?'))
-            socket.send(
-              JSON.stringify({ type: 'mod_ban', target: p.username }),
-            );
-        };
-        document.getElementById('admin-pardon-btn').onclick = function () {
-          socket.send(
-            JSON.stringify({ type: 'mod_pardon', target: p.username }),
-          );
-        };
-        document.getElementById('admin-timeout-btn').onclick = async function () {
-          var dur = document.getElementById('admin-timeout-dur').value;
-          var r = await unPrompt('Reason for timeout?');
-          if (r)
-            socket.send(
-              JSON.stringify({
-                type: 'mod_timeout',
-                target: p.username,
-                duration: dur,
-                reason: r,
-              }),
-            );
-        };
-      } else if (userRoles.is_moderator && !isSelf) {
-        document.getElementById('admin-controls').style.display = 'block';
-        document.getElementById('admin-ban-btn').style.display = 'none';
-        document.getElementById('admin-pardon-btn').style.display = 'none';
-        document.getElementById('admin-timeout-btn').onclick = async function () {
-          var dur = document.getElementById('admin-timeout-dur').value;
-          var r = await unPrompt('Reason for timeout?');
-          if (r)
-            socket.send(
-              JSON.stringify({
-                type: 'mod_timeout',
-                target: p.username,
-                duration: dur,
-                reason: r,
-              }),
-            );
-        };
-      } else {
-        document.getElementById('admin-controls').style.display = 'none';
-      }
-      document.getElementById('modal-overlay').style.display = 'block';
-    }
-
-    function closeInfoModal() {
-      document.getElementById('modal-overlay').style.display = 'none';
-    }
-
-    function saveProfileChanges() {
-      var av = document.getElementById('edit-avatar').value.trim();
-      var loc = document.getElementById('edit-location').value.trim();
-      var bio = document.getElementById('edit-bio').value.trim();
-      log('Sending profile update packet.');
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', BACKEND_URL + '/api/profile', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
+        var isSelf = p.username === myUsername;
+        document.getElementById('info-edit-controls').style.display = isSelf
+          ? 'block'
+          : 'none';
+        document.getElementById('info-dm-btn').style.display = isSelf
+          ? 'none'
+          : 'block';
+        document.getElementById('info-dm-btn').onclick = function () {
           closeInfoModal();
-          openProfileModal(myUsername);
-        }
-      };
-      xhr.send(JSON.stringify({ bio: bio, location: loc, avatar_emoji: av }));
-    }
+          switchChannel('dm', p.username);
+        };
 
-    async function submitPasswordChange() {
-      var currentPass = document.getElementById('change-pass-current').value;
-      var newPass = document.getElementById('change-pass-new').value;
-      if (!currentPass || !newPass)
-        return await unAlert('Please fill out both password fields.');
-      log('Sending security parameter update packet.');
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', BACKEND_URL + '/api/change-password', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-      xhr.onreadystatechange = async function () {
-        if (xhr.readyState === 4) {
-          var res = JSON.parse(xhr.responseText);
-          if (xhr.status === 200 && res.success) {
-            await unAlert('Password updated!');
+        if (isSelf) {
+          document.getElementById('edit-avatar').value = p.avatar_emoji;
+          document.getElementById('edit-location').value = p.location;
+          document.getElementById('edit-bio').value = p.bio;
+          document.getElementById('change-pass-current').value = '';
+          document.getElementById('change-pass-new').value = '';
+        }
+
+        if (userRoles.is_admin) {
+          document.getElementById('admin-controls').style.display = 'block';
+          document.getElementById('admin-ban-btn').style.display =
+            'inline-block';
+          document.getElementById('admin-pardon-btn').style.display =
+            'inline-block';
+          document.getElementById('admin-ban-btn').onclick = async function () {
+            if (await unConfirm('Ban ' + p.username + '?'))
+              socket.send(
+                JSON.stringify({ type: 'mod_ban', target: p.username }),
+              );
+          };
+          document.getElementById('admin-pardon-btn').onclick = function () {
+            socket.send(
+              JSON.stringify({ type: 'mod_pardon', target: p.username }),
+            );
+          };
+          document.getElementById('admin-timeout-btn').onclick = async function () {
+            var dur = document.getElementById('admin-timeout-dur').value;
+            var r = await unPrompt('Reason for timeout?');
+            if (r)
+              socket.send(
+                JSON.stringify({
+                  type: 'mod_timeout',
+                  target: p.username,
+                  duration: dur,
+                  reason: r,
+                }),
+              );
+          };
+        } else if (userRoles.is_moderator && !isSelf) {
+          document.getElementById('admin-controls').style.display = 'block';
+          document.getElementById('admin-ban-btn').style.display = 'none';
+          document.getElementById('admin-pardon-btn').style.display = 'none';
+          document.getElementById('admin-timeout-btn').onclick = async function () {
+            var dur = document.getElementById('admin-timeout-dur').value;
+            var r = await unPrompt('Reason for timeout?');
+            if (r)
+              socket.send(
+                JSON.stringify({
+                  type: 'mod_timeout',
+                  target: p.username,
+                  duration: dur,
+                  reason: r,
+                }),
+              );
+          };
+        } else {
+          document.getElementById('admin-controls').style.display = 'none';
+        }
+        document.getElementById('modal-overlay').style.display = 'block';
+      }
+
+      function closeInfoModal() {
+        document.getElementById('modal-overlay').style.display = 'none';
+      }
+
+      function saveProfileChanges() {
+        var av = document.getElementById('edit-avatar').value.trim();
+        var loc = document.getElementById('edit-location').value.trim();
+        var bio = document.getElementById('edit-bio').value.trim();
+        log('Sending profile update packet.');
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', BACKEND_URL + '/api/profile', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4 && xhr.status === 200) {
             closeInfoModal();
-          } else await unAlert(res.error || 'Failed to update password.');
-        }
-      };
-      xhr.send(
-        JSON.stringify({
-          currentPassword: currentPass,
-          newPassword: newPass,
-        }),
-      );
-    }
+            openProfileModal(myUsername);
+          }
+        };
+        xhr.send(JSON.stringify({ bio: bio, location: loc, avatar_emoji: av }));
+      }
 
-    if (token && myUsername) {
-      initApp(false);
-    }
-  </script>
+      async function submitPasswordChange() {
+        var currentPass = document.getElementById('change-pass-current').value;
+        var newPass = document.getElementById('change-pass-new').value;
+        if (!currentPass || !newPass)
+          return await unAlert('Please fill out both password fields.');
+        log('Sending security parameter update packet.');
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', BACKEND_URL + '/api/change-password', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.onreadystatechange = async function () {
+          if (xhr.readyState === 4) {
+            var res = JSON.parse(xhr.responseText);
+            if (xhr.status === 200 && res.success) {
+              await unAlert('Password updated!');
+              closeInfoModal();
+            } else await unAlert(res.error || 'Failed to update password.');
+          }
+        };
+        xhr.send(
+          JSON.stringify({
+            currentPassword: currentPass,
+            newPassword: newPass,
+          }),
+        );
+      }
+
+      if (token && myUsername) {
+        initApp(false);
+      }
+    </script>
 </body>
 
 </html>
