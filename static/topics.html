@@ -964,10 +964,9 @@
               ' be kicked.',
           );
           if (
-            userRoles.is_admin ||
-            (userRoles.is_moderator &&
-              !u.userRoles.is_admin &&
-              u.username !== myUsername)
+            u.username !== myUsername &&
+            (userRoles.is_admin ||
+              (userRoles.is_moderator && !u.userRoles.is_admin))
           ) {
             const username = u.username;
             var kick = document.createElement('button');

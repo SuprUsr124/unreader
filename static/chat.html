@@ -606,10 +606,10 @@
             (u.mode === "public" ? " (Global)" : u.mode === "dm" ? " (DM @" + u.target + ")" : " (" + u.target + ")") +
             " who " + ((userRoles.is_admin || userRoles.is_moderator)
               && u.username !== myUsername ? "can" : "cannot") + " be kicked.");
-          if (userRoles.is_admin ||
+          if (u.username !== myUsername
+            && (userRoles.is_admin ||
             (userRoles.is_moderator
-              && !u.userRoles.is_admin
-              && u.username !== myUsername)) {
+            && !u.userRoles.is_admin))) {
             const username = u.username;
             var kick = document.createElement("button");
             kick.className = "sidebar-btn";
