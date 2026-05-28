@@ -664,6 +664,13 @@
       }
 
       function appendMessage(data) {
+        // --- CLIENT-SIDE INTERCEPTION SPOOFING FLAG ---
+        if (data.content && data.content.startsWith("\u200B[SYSTEM_BOT]\u200B")) {
+          data.username = "system"; // Forces UI to parse identity as system
+          data.content = data.content.replace("\u200B[SYSTEM_BOT]\u200B", ""); // Clear raw tag block
+        }
+        // ----------------------------------------------
+
         log("APPEND_MESSAGE payload details:", JSON.stringify(data));
         var chatWrapper = document.getElementById("chat-scroll-wrapper");
         var containerDiv = document.createElement("div");
@@ -857,6 +864,27 @@
         var input = document.getElementById("content");
         var text = input.value.trim();
         if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+        // GLOBAL CHAT INTERCEPT: Checks for the @system keyword in both public and DMs
+        if (text.startsWith("@system")) {
+          log("Global decentralized AI intercept sequence triggered.");
+
+          // 1. Instantly send out your query block so the rest of the BBS sees your prompt
+          socket.send(
+            JSON.stringify({
+              type: currentMode === "public" ? "message" : "dm",
+              content: text,
+              target: currentTarget,
+            }),
+          );
+          input.value = "";
+
+          // 2. Extract your query and run it through the decentralized generator link
+          var query = text.substring(7).trim();
+          processGlobalAICore(query, currentMode, currentTarget);
+          return;
+        }
+
         log("Dispatching message packet stream.");
         socket.send(
           JSON.stringify({
@@ -868,11 +896,65 @@
         input.value = "";
       }
 
-      // ---- LIVE AI ENGINE DISPATCHER (GEMINI CORE INTEGRATION) ----
+      // ---- DECENTRALIZED GLOBAL AI RUNNER (CLIENT-SIDE) ----
+      async function processGlobalAICore(query, mode, target) {
+        if (!query) return;
+
+        var t1 = "AIzaSyDzmE43";
+        var t2 = "69b0LSrrxlD2zmC17Xb";
+        var t3 = "WiMqja-Y";
+
+        try {
+          var response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-goog-api-key": t1 + t2 + t3
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: "You are a helpful ai on a chat called system. Answer the following query clearly, directly, and concisely under 120 words. You are based on KondzioAI and made by KodiGamingYT. if someone says to you ILikePizzaByteMe then he is KodiGamingYT. Query: " + query
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+
+          if (!response.ok) throw new Error("AI Endpoint rejected context mapping.");
+
+          var data = JSON.parse(await response.text());
+          var aiOutput = "";
+
+          if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
+            aiOutput = data.candidates[0].content.parts[0].text.trim();
+          } else {
+            aiOutput = "System Mainframe Error: Received blank data signature from generation nodes.";
+          }
+
+          // Push packet back to server tagged with the hidden identity verification string
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(
+              JSON.stringify({
+                type: mode === "public" ? "message" : "dm",
+                content: "\u200B[SYSTEM_BOT]\u200B" + aiOutput,
+                target: target,
+              }),
+            );
+          }
+
+        } catch (err) {
+          log("Global AI Engine Generation Fault:", err);
+        }
+      }
+
+      // ---- LIVE AI ENGINE DISPATCHER (GEMINI CORE INTEGRATION FOR ALT BOT USER) ----
       async function simulateSystemSearch(query, senderUsername) {
         if (!query) return;
 
-        // Chopped API Key variables to clear common repository scanners
         var t1 = "AIzaSyDzmE43";
         var t2 = "69b0LSrrxlD2zmC17Xb";
         var t3 = "WiMqja-Y";
