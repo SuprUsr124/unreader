@@ -633,7 +633,8 @@
           <div class="panel-header" id="active-users">
             <div>Active Users</div>
             <button
-              class="sidebar-btn"
+              id="kick-all-btn"
+              class="sidebar-btn hide"
               style="margin: 0"
               onclick="kickAllUsers()"
             >
@@ -912,12 +913,26 @@
 
       var onlineUsers = [];
       function renderUserRoster(userList) {
-        // log("Showing users:", userList);
         onlineUsers = userList;
         var container = document.getElementById('roster-list');
         container.innerHTML = '';
+
+        var sysDiv = document.createElement('div');
+        sysDiv.className = 'roster-user';
+        sysDiv.style.display = 'flex';
+        sysDiv.style.justifyContent = 'space-between';
+        var sysSpan = document.createElement('span');
+        sysSpan.className = 'roster-name';
+        sysSpan.textContent = 'system (Global)';
+        sysSpan.onclick = function () {
+          openProfileModal('system');
+        };
+        sysDiv.appendChild(sysSpan);
+        container.appendChild(sysDiv);
+
         for (var i = 0; i < userList.length; i++) {
           var u = userList[i];
+          if (u.username === 'system') continue;
           var div = document.createElement('div');
           div.className = 'roster-user';
           div.style.display = 'flex';
