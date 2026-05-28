@@ -26,18 +26,6 @@
       background: white;
     }
 
-    .roster-user {
-      padding: 4px 8px;
-      border-bottom: 1px solid #eee;
-      font-size: 11px;
-    }
-
-    .roster-name {
-      font-weight: bold;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-
     .nav-item {
       padding: 6px 10px;
       cursor: pointer;
@@ -59,25 +47,6 @@
       font-weight: bold;
     }
 
-    .mod-indicator-btn {
-      background: #fff;
-      border: 2px dashed red !important;
-      color: red;
-      width: 95%;
-      font-weight: bold;
-      font-family: monospace;
-      font-size: 11px;
-      cursor: pointer;
-      padding: 4px 0;
-      text-align: center;
-    }
-
-    .mod-indicator-active {
-      background: red !important;
-      color: white !important;
-      border-style: solid !important;
-    }
-
     .page-btn {
       background: #ffffff;
       border: var(--border);
@@ -87,12 +56,6 @@
       cursor: pointer;
       font-size: 11px;
       box-shadow: 1px 1px 0 black;
-    }
-
-    #page-display-index {
-      margin: 0 10px;
-      font-weight: bold;
-      font-size: 12px;
     }
 
     .message-container {
@@ -311,11 +274,11 @@
   <div id="auth-screen">
     <div class="auth-box">
       <h2 id="auth-title" style="margin-top: 0">LOGIN</h2>
-      <input type="text" id="auth-user" placeholder="Username" autocomplete="off" />
-      <input type="password" id="auth-pass" placeholder="Password" />
-      <button id="auth-submit-btn">SUBMIT</button>
+      <input class='paper-input' type="text" id="auth-user" placeholder="Username" autocomplete="off" />
+      <input class='paper-input' type="password" id="auth-pass" placeholder="Password" />
+      <button id="auth-submit-btn" class='paper-btn'>SUBMIT</button>
       <div id="auth-toggle" style="
-            font-size: 11px;
+            font-size: 12px;
             margin-top: 12px;
             cursor: pointer;
             text-decoration: underline;
@@ -330,11 +293,11 @@
   <div class="window">
     <div class="title-bar">
       <div class="title-stripes"></div>
-      <button id="back-btn" onclick="window.location.href = 'index.html'">
+      <button class='paper-btn' id="back-btn" onclick="window.location.href = 'index.html'">
         ◀ HOME
       </button>
       <div class="title-text">un-reader BBS - Chat</div>
-      <span id="user-display" onclick="openProfileModal(myUsername)"></span>
+      <span class='paper-btn' id="user-display" onclick="openProfileModal(myUsername)"></span>
     </div>
 
     <div id="workspace-table">
@@ -346,32 +309,25 @@
 
         <div class="panel-header">Direct Messages</div>
         <div class="sidebar-input-container">
-          <input type="text" id="dm-target-input" class="sidebar-input" placeholder="Username..." />
-          <button class="sidebar-btn" onclick="triggerAddDM()">CHAT</button>
+          <input type="text" id="dm-target-input" class="sidebar-input paper-input" placeholder="Username..." />
+          <button class="sidebar-btn paper-btn" onclick="triggerAddDM()">CHAT</button>
         </div>
         <div id="dm-list"></div>
 
         <div class="panel-header" id="active-users">
           <div>Active Users</div>
-          <button id='kick-all-btn' class="sidebar-btn hide" style="margin:0;" onclick='kickAllUsers()'>KICK ALL</button>
+          <button id='kick-all-btn' class="sidebar-btn paper-btn hide" style="margin:0;" onclick='kickAllUsers()'>KICK ALL</button>
         </div>
         <div id="roster-list"></div>
 
         <div class="panel-header">System Operations</div>
-        <div id="settings-box-container" style="padding: 6px">
-          <div id="mod-toggle-container" style="display: none; margin-bottom: 4px">
-            <button id="mod-mode-btn" class="mod-indicator-btn" onclick="toggleModMode()">
+        <div id="settings-box-container"style="padding: 6px">
+          <div id="mod-toggle-container" class='hide' style="display: none; flex-direction: column; align-items: stretch;">
+            <button id="mod-mode-btn" class="paper-btn mod-indicator-btn" onclick="toggleModMode()">
               MOD MODE: OFF
             </button>
-            <button id="modmenu-link-btn" style="
-                    width: 95%;
-                    font-family: monospace;
-                    font-size: 10px;
-                    margin-top: 4px;
-                    cursor: pointer;
-                    border: 1px solid black;
-                    background: white;
-                  " onclick="window.location.href = 'modmenu.html'">
+            <button id="modmenu-link-btn" class='paper-btn' style="margin-top: 6px; cursor: pointer;"
+              onclick="window.location.href = 'modmenu.html'">
               MODERATION APP
             </button>
           </div>
@@ -379,18 +335,18 @@
       </div>
       <div id="chat-cell">
         <div id="pagination-header-bar">
-          <button class="page-btn" onclick="jumpPage(-1)">
+          <button class="paper-btn shadow" onclick="jumpPage(-1)">
             &lt; NEWER
           </button>
           <span id="page-display-index">PAGE: 0</span>
-          <button class="page-btn" onclick="jumpPage(1)">OLDER &gt;</button>
+          <button class="paper-btn shadow" onclick="jumpPage(1)">OLDER &gt;</button>
         </div>
 
         <div id="chat-scroll-wrapper"></div>
 
         <div id="input-bar-container">
-          <textarea id="content" placeholder="Type message here..." autocomplete="off"></textarea>
-          <button id="send">SEND</button>
+          <textarea class='paper-input' id="content" placeholder="Type message here..." autocomplete="off"></textarea>
+          <button id="send" class='paper-btn'>SEND</button>
         </div>
       </div>
     </div>
@@ -517,8 +473,7 @@
               userRoles = data.user_roles;
               log("Roles updated:", userRoles);
               if (userRoles.is_admin || userRoles.is_moderator) {
-                document.getElementById("mod-toggle-container").style.display =
-                  "block";
+                document.querySelector('#mod-toggle-container').style.display = "flex";
                 localStorage.setItem("unreader-rank", "mod");
               } else {
                 localStorage.setItem("unreader-rank", "user");
@@ -554,6 +509,7 @@
         sysDiv.className = "roster-user";
         sysDiv.style.display = "flex";
         sysDiv.style.justifyContent = "space-between";
+        sysDiv.style.alignItems = "center";
         var sysSpan = document.createElement("span");
         sysSpan.className = "roster-name";
         sysSpan.textContent = "system (Global)";
@@ -568,6 +524,7 @@
           div.className = "roster-user";
           div.style.display = "flex";
           div.style.justifyContent = "space-between";
+          div.style.alignItems = "center";
           var span = document.createElement("span");
           span.className = "roster-name";
           var context = u.mode === "public" ? " (Global)" : u.mode === "dm" ? " (DM @" + u.target + ")" : " (" + u.target + ")";
@@ -588,7 +545,7 @@
             && !u.userRoles.is_admin))) {
             const username = u.username;
             var kick = document.createElement("button");
-            kick.className = "sidebar-btn";
+            kick.className = "paper-btn";
             kick.textContent = "KICK";
             kick.onclick = function () {
               kickUser(username);
