@@ -668,6 +668,8 @@
         if (data.content && data.content.startsWith("\u200B[SYSTEM_BOT]\u200B")) {
           data.username = "system"; // Forces UI to parse identity as system
           data.content = data.content.replace("\u200B[SYSTEM_BOT]\u200B", ""); // Clear raw tag block
+          data.is_admin = false; // STRIP ADMIN PRIVILEGES FROM SENDER TO PREVENT BADGE CLONING
+          data.is_system_bot = true; // Inject pure layout flag for distinct system rank rendering
         }
         // ----------------------------------------------
 
@@ -684,7 +686,8 @@
         var styleClass = "message ";
         if (data.is_deleted) styleClass += "purged-msg";
         else {
-          if (data.is_admin) styleClass += "admin-msg";
+          if (data.is_system_bot) styleClass += "mod-msg"; // Uses clean system box styling
+          else if (data.is_admin) styleClass += "admin-msg";
           else if (data.is_moderator || effectiveUsername === "system") styleClass += "mod-msg";
           else styleClass += isMe ? "my-msg" : "other-msg";
         }
@@ -694,8 +697,10 @@
         var meta = document.createElement("div");
         meta.className = "message-meta";
         meta.style.cursor = "pointer";
+        
+        // Render precise SYSTEM rank tag instead of copying your Admin title
         var nameDisplay =
-          (data.is_admin ? "ADMIN " : (data.is_moderator || effectiveUsername === "system") ? "MOD " : "")
+          (data.is_system_bot ? "SYSTEM " : data.is_admin ? "ADMIN " : (data.is_moderator || effectiveUsername === "system") ? "MOD " : "")
           + "@" + effectiveUsername;
         meta.textContent = nameDisplay + " • " + timeStr;
         (function (username) {
