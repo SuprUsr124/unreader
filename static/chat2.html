@@ -550,7 +550,6 @@
         var container = document.getElementById("roster-list");
         container.innerHTML = "";
 
-        // System is visually locked to the top roster list as always online
         var sysDiv = document.createElement("div");
         sysDiv.className = "roster-user";
         sysDiv.style.display = "flex";
@@ -564,7 +563,7 @@
 
         for (var i = 0; i < userList.length; i++) {
           var u = userList[i];
-          if (u.username === "system") continue; // Prevent duplication if alt is logged in
+          if (u.username === "system") continue; 
           var div = document.createElement("div");
           div.className = "roster-user";
           div.style.display = "flex";
@@ -832,11 +831,9 @@
 
             // ---- SERVER-SIDE PERSISTENCE DETECTOR FOR ALT BOT ACCOUNT ----
             if (data.length > 0 && myUsername === "system" && currentHistoryIndex === 0) {
-              // Locate the newest absolute message via maximum message ID
               var latestMsg = data.reduce((max, msg) => (msg.id > max.id ? msg : max), data[0]);
               var lastRespondedId = localStorage.getItem("sys_last_id");
               
-              // Prevent answering historic records immediately upon refreshing or booting up
               if (lastRespondedId === null) {
                 localStorage.setItem("sys_last_id", latestMsg.id);
                 return;
@@ -846,7 +843,7 @@
                 if (latestMsg.content.trim().startsWith("@system")) {
                   localStorage.setItem("sys_last_id", latestMsg.id);
                   var query = latestMsg.content.trim().substring(7).trim();
-                  simulateSystemAI(query, latestMsg.username);
+                  simulateSystemSearch(query, latestMsg.username);
                 }
               }
             }
@@ -871,51 +868,40 @@
         input.value = "";
       }
 
-      // ---- LIVE AI DISPATCHER FOR MAINFRAME COGNITIVE PROCESSING ----
-      async function simulateSystemAI(query, senderUsername) {
-        // --- CONFIGURATION MATRIX ---
-        // For standard cloud access, use your endpoint and drop your bearer key below.
-        // If running an offline LLM locally (Ollama/LM Studio), flip the URL to "http://localhost:11434/v1/chat/completions" (or port 1234)
-        const AI_API_URL = "https://api.openai.com/v1/chat/completions"; 
-        const AI_API_KEY = "YOUR_REAL_API_KEY_HERE"; 
-        const AI_MODEL = "gpt-4o-mini"; 
-
+      // ---- LIVE WEB SEARCH DISPATCHER FOR REAL-TIME BBS INDEXING ----
+      async function simulateSystemSearch(query, senderUsername) {
         if (!query) {
-          dispatchSystemResponse("Mainframe connection confirmed. Send a prompt query terminal input following `@system`.", senderUsername);
+          dispatchSystemResponse("Mainframe search terminal active. Use `@system <query>` to parse the web.", senderUsername);
           return;
         }
 
         try {
-          var response = await fetch(AI_API_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": "Bearer " + AI_API_KEY
-            },
-            body: JSON.stringify({
-              model: AI_MODEL,
-              messages: [
-                { 
-                  role: "system", 
-                  content: "You are the system operator automation core inside an old-school text-based BBS chat space called 'un-reader BBS'. Keep responses sharp, tech-literate, helpful, and highly scannable. Format with bold markdown text or clean lists when appropriate." 
-                },
-                { 
-                  role: "user", 
-                  content: "Message from @" + senderUsername + ": " + query 
-                }
-              ]
-            })
-          });
+          var searchUrl = "https://api.duckduckgo.com/?q=" + encodeURIComponent(query) + "&format=json&no_html=1";
+          var response = await fetch(searchUrl);
+          
+          if (!response.ok) throw new Error("Network rejected index request status: " + response.status);
 
-          if (!response.ok) throw new Error("Terminal network code rejected request status: " + response.status);
+          var data = JSON.parse(await response.text());
+          var searchResult = "";
 
-          var payload = JSON.parse(await response.text());
-          var aiText = payload.choices[0].message.content.trim();
-          dispatchSystemResponse(aiText, senderUsername);
+          if (data.AbstractText) {
+            searchResult = data.AbstractText;
+          } else if (data.RelatedTopics && data.RelatedTopics.length > 0 && data.RelatedTopics[0].Text) {
+            searchResult = data.RelatedTopics[0].Text;
+          } else {
+            searchResult = "No direct database match found for: '" + query + "'. Try adjusting your keywords.";
+          }
+
+          var wordArray = searchResult.split(/\s+/);
+          if (wordArray.length > 200) {
+            searchResult = wordArray.slice(0, 200).join(" ") + "... [Result truncated to 200 words]";
+          }
+
+          dispatchSystemResponse("🌐 **Search Index Result:**\n" + searchResult, senderUsername);
 
         } catch (err) {
-          log("AI Processing Stream Fault:", err);
-          dispatchSystemResponse("⚠️ **CRITICAL FAULT:** Failed to query matrix engine. Check automation endpoint console logs.", senderUsername);
+          log("Search Engine Matrix Fault:", err);
+          dispatchSystemResponse("⚠️ **CRITICAL FAULT:** Unable to reach search gateway routing tables.", senderUsername);
         }
       }
 
