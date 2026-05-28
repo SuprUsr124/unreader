@@ -1060,7 +1060,7 @@
         if (data.is_deleted) {
           txtBody.innerHTML = '<em>[MESSAGE PURGED]</em>';
         } else {
-          txtBody.innerHTML = parseMarkup(data.content);
+          txtBody.innerHTML = censor(parseMarkup(data.content));
           if (isMe && data.id !== -1) {
             var selfDelBtn = document.createElement('button');
             selfDelBtn.className = 'user-delete-btn';

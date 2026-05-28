@@ -1029,9 +1029,11 @@
           box.querySelector('.nb-header').onclick = function () {
             openProfileModal(effectiveUsername);
           };
-          box.querySelector('.nb-title').innerHTML = parseMarkup(data.title);
-          box.querySelector('.message-text').innerHTML = parseMarkup(
-            data.content,
+          box.querySelector('.nb-title').innerHTML = censor(
+            parseMarkup(data.title),
+          );
+          box.querySelector('.message-text').innerHTML = censor(
+            parseMarkup(data.content),
           );
           var cList = box.querySelector('.comment-list');
           if (data.comments && data.comments.length > 0) {
@@ -1058,7 +1060,9 @@
                     openProfileModal(u);
                   };
                 })(cEffectiveUsername);
-                cDiv.querySelector('.c-txt').innerHTML = parseMarkup(c.content);
+                cDiv.querySelector('.c-txt').innerHTML = censor(
+                  parseMarkup(data.content),
+                );
 
                 if (
                   cEffectiveUsername === myUsername ||

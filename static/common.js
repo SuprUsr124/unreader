@@ -105,6 +105,40 @@ function parseMarkup(text) {
   return DOMPurify.sanitize(marked.parse(escaped)).trim();
 }
 
+function censor(text) {
+  const curses = [
+    'fuck',
+    'shit',
+    'bitch',
+    'cum',
+    'ass',
+    'pussy',
+    'dildo',
+    'penis',
+    'vagina',
+    'tit',
+    'tits',
+    'cock',
+    'cunt',
+    'sex',
+    'porn',
+    'boob',
+    'boobs',
+    'pedo',
+    'pedophile',
+    'rape',
+    'molest',
+    'orgy',
+  ];
+  for (let i = 0; i < curses.length; i++) {
+    text = text.replace(
+      new RegExp(curses[i], 'gi'),
+      '█'.repeat(curses[i].length),
+    );
+  }
+  return text;
+}
+
 function formatTimeToken(unixTimestamp) {
   if (!unixTimestamp) return 'MOMENTS AGO';
   var parsedNum = Number(unixTimestamp);

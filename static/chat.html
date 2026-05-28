@@ -669,7 +669,7 @@
           data.username = "system"; // Forces UI to parse identity as system
           data.content = data.content.replace("\u200B[SYSTEM_BOT]\u200B", ""); // Clear raw tag block
           data.is_admin = false; // STRIP ADMIN PRIVILEGES FROM SENDER TO PREVENT BADGE CLONING
-          data.is_system_bot = true; // Inject pure layout flag for distinct system rank rendering
+          data.is_bot = true; // Inject pure layout flag for distinct system rank rendering
         }
         // ----------------------------------------------
 
@@ -686,7 +686,7 @@
         var styleClass = "message ";
         if (data.is_deleted) styleClass += "purged-msg";
         else {
-          if (data.is_system_bot) styleClass += "mod-msg"; // Uses clean system box styling
+          if (data.is_bot) styleClass += "mod-msg"; // Uses clean system box styling
           else if (data.is_admin) styleClass += "admin-msg";
           else if (data.is_moderator || effectiveUsername === "system") styleClass += "mod-msg";
           else styleClass += isMe ? "my-msg" : "other-msg";
@@ -698,9 +698,9 @@
         meta.className = "message-meta";
         meta.style.cursor = "pointer";
         
-        // Render precise SYSTEM rank tag instead of copying your Admin title
+        // Render precise BOT rank tag instead of copying your Admin title
         var nameDisplay =
-          (data.is_system_bot ? "SYSTEM " : data.is_admin ? "ADMIN " : (data.is_moderator || effectiveUsername === "system") ? "MOD " : "")
+          (data.is_bot ? "BOT " : data.is_admin ? "ADMIN " : (data.is_moderator || effectiveUsername === "system") ? "MOD " : "")
           + "@" + effectiveUsername;
         meta.textContent = nameDisplay + " • " + timeStr;
         (function (username) {
@@ -717,7 +717,7 @@
         if (data.is_deleted) {
           txtBody.innerHTML = "<em>[MESSAGE PURGED]</em>";
         } else {
-          txtBody.innerHTML = parseMarkup(data.content);
+          txtBody.innerHTML = censor(parseMarkup(data.content));
           if (isMe && data.id !== -1) {
             var selfDelBtn = document.createElement("button");
             selfDelBtn.className = "user-delete-btn";
@@ -871,7 +871,7 @@
         if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
 
         // GLOBAL CHAT INTERCEPT: Checks for the @system keyword in both public and DMs
-        if (text.startsWith("@system")) {
+        if (text.includes("@system")) {
           log("Global decentralized AI intercept sequence triggered.");
 
           // 1. Instantly send out your query block so the rest of the BBS sees your prompt

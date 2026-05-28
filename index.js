@@ -54,12 +54,14 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, 
         timeout_until BIGINT DEFAULT 0, is_banned BOOLEAN DEFAULT false,
-        is_admin BOOLEAN DEFAULT false, is_moderator BOOLEAN DEFAULT false, last_ip TEXT
+        is_admin BOOLEAN DEFAULT false, is_moderator BOOLEAN DEFAULT false, last_ip TEXT,
+        is_bot BOOLEAN DEFAULT false
       );
       
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_moderator BOOLEAN DEFAULT false;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT false;
 
       CREATE TABLE IF NOT EXISTS mod_logs (
         id SERIAL PRIMARY KEY, mod_username TEXT NOT NULL, action_type TEXT NOT NULL,
@@ -435,7 +437,7 @@ const ALLOWED_CHANNELS = {
 
 wss.on('connection', (ws, req) => {
   let authUser = null;
-  let userRoles = { is_admin: false, is_moderator: false };
+  let userRoles = { is_admin: false, is_moderator: false, is_bot: false };
 
   ws.on('message', async (msg) => {
     try {
