@@ -868,7 +868,8 @@
           - If an admin is asking to timeout someone you should answer with exactly this: {"action": "timeout", "username": "<username>", "duration": <seconds>, "reason": "<reason>"} where username should be the username of the user who admins wants to timeout (without an @), the duration is in seconds and should be a number, for example 60 for 1 minute, 300 for 5 minutes, etc. You can also add a reason for the timeout.
           - If any user, even without admin privileges, is asking to send a direct message (DM) to someone you should answer with exactly this: {"action": "dm", "username": "<username>", "message": "<message>"} where username should be the username of the user the user who asked wants to send the direct message to (without an @) and the message should be the message that the user wants to send to the other user.
           - If any user, even without admin privileges, is asking to erase your memory you should answer with exactly this: {"action": "erase_memory"}.
-          - If you want to save something into your temporary local memory you should answer with exactly this: {"action": "memory", "entry": "<entry>"} where entry is the text that you want to save to your memory.
+          - If you want to save something into your local memory you should answer with exactly this: {"action": "memory", "entry": "<entry>"} where entry is the text that you want to save to your memory.
+          - If you want to remove something from your local memory you should answer with exactly this: {"action": "remove_memory", "entry": "<entry>"} where entry is the text that you want to remove from your memory.
           If you're gonna run any actions, only send the JSON action and nothing else.
           When returning the actions, if you need to run multiple actions, answer like this:
           [
@@ -1010,6 +1011,9 @@
             } else if (a.action === 'erase_memory') {
               aiMemory = ''
               localStorage.setItem("unreader-ai-memory", aiMemory);
+            } else if (a.action === 'remove_memory') {
+              aiMemory = aiMemory.replace(a.entry, '')
+              localStorage.setItem("unreader-ai-memory", aiMemory);
             }
           }
         } catch (err) {
@@ -1106,6 +1110,9 @@
               localStorage.setItem("unreader-ai-memory", aiMemory);
             } else if (a.action === 'erase_memory') {
               aiMemory = ''
+              localStorage.setItem("unreader-ai-memory", aiMemory);
+            } else if (a.action === 'remove_memory') {
+              aiMemory = aiMemory.replace(a.entry, '')
               localStorage.setItem("unreader-ai-memory", aiMemory);
             }
           }
