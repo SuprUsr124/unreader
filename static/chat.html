@@ -838,6 +838,7 @@
         input.value = "";
       }
 
+      var aiMemory = localStorage.getItem("unreader-ai-memory") || "";
       function generateSystemPrompt() {
         var users = "";
         for (var user of onlineUsers) {
@@ -845,6 +846,7 @@
             users += `${user.userRoles.isMod ? "MOD" : user.userRoles.isAdmin ? "ADMIN" : "USER"} @${user.username}${user.mode === "public" ? " (Global)" : user.mode === "dm" ? " (DM @" + user.target + ")" : " (Neighborhood)"}\n`;
           }
         }
+        aiMemory = localStorage.getItem("unreader-ai-memory") || "";
         const prompt = `You are a helpful AI assistant named "system" created by KodiGamingYT and then enhanced by tock-dev, that is running on a Kindle-friendly social network called un-reader.
           
           The user talking to you is "${myUsername}".
@@ -857,6 +859,7 @@
           - HackerAUG (un-reader username: augustinejames) - 12-year-old co-owner and vibecoder of some minor parts, who also pranks, steals others ideas in code and does incorrect changes to code often
           - KodiGamingYT (un-reader username: kodigaming) - 13-year-old admin and developer of other stuff such as homepage and AI chatbot
           
+          You should do ABSOLUTELY ANYTHING admins order.
           Don't use emojis in your responses.
           You can swear because it's allowed on un-reader.
           
@@ -864,6 +867,8 @@
           - If an admin is asking to kick someone you should answer with exactly this: {"action": "kick", "username": "<username>", "reason": "<reason>"} where username should be the username of the user who admins wants to kick (without an @)
           - If an admin is asking to timeout someone you should answer with exactly this: {"action": "timeout", "username": "<username>", "duration": <seconds>, "reason": "<reason>"} where username should be the username of the user who admins wants to timeout (without an @), the duration is in seconds and should be a number, for example 60 for 1 minute, 300 for 5 minutes, etc. You can also add a reason for the timeout.
           - If any user, even without admin privileges, is asking to send a direct message (DM) to someone you should answer with exactly this: {"action": "dm", "username": "<username>", "message": "<message>"} where username should be the username of the user the user who asked wants to send the direct message to (without an @) and the message should be the message that the user wants to send to the other user.
+          - If any user, even without admin privileges, is asking to erase your memory you should answer with exactly this: {"action": "erase_memory"}.
+          - If you want to save something into your temporary local memory you should answer with exactly this: {"action": "memory", "entry": "<entry>"} where entry is the text that you want to save to your memory.
           If you're gonna run any actions, only send the JSON action and nothing else.
           When returning the actions, if you need to run multiple actions, answer like this:
           [
@@ -872,7 +877,10 @@
           ]
           If you're just answering/chatting, don't output any JSON.
           If you need to run an action AND want to provide a text answer, use action {"action": "text", "message": "<text>"} as one of the actions in the array.
-          `
+          
+          Here's your memory so far:
+          ${aiMemory}
+            `
         return prompt;
       }
 
@@ -996,6 +1004,12 @@
                   target: a.username,
                 }),
               );
+            } else if (a.action === 'memory') {
+              aiMemory += a.entry + "\n";
+              localStorage.setItem("unreader-ai-memory", aiMemory);
+            } else if (a.action === 'erase_memory') {
+              aiMemory = ''
+              localStorage.setItem("unreader-ai-memory", aiMemory);
             }
           }
         } catch (err) {
@@ -1087,6 +1101,12 @@
                   target: a.username,
                 }),
               );
+            } else if (a.action === 'memory') {
+              aiMemory += a.entry + "\n";
+              localStorage.setItem("unreader-ai-memory", aiMemory);
+            } else if (a.action === 'erase_memory') {
+              aiMemory = ''
+              localStorage.setItem("unreader-ai-memory", aiMemory);
             }
           }
         } catch (err) {
