@@ -913,6 +913,13 @@
         var t2 = "Wj5dMZG87WGdyb3FYVt6SIkkk";
         var t3 = "zGeKv4KRp3KYlL6m";
 
+        var users = []
+        for (var user of onlineUsers) {
+          if (user.username !== senderUsername) {
+            users.push(`${user.userRoles.isMod ? "MOD" : user.userRoles.isAdmin ? "ADMIN" : "USER"} @${user.username}${u.mode === "public" ? " (Global)" : u.mode === "dm" ? " (DM @" + u.target + ")" : " (Neighborhood)"}`);
+          }
+        }
+
         try {
           var response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -926,12 +933,13 @@
                   "role": "system",
                   "content": `You are a helpful AI assistant named "system" created by KodiGamingYT and then enhanced by tock-dev, that is running on a Kindle-friendly social network called un-reader.
                   The user talking to you is "${myUsername}".
+                  Current users online:
+                  ${users}
                   The admins of un-reader are:
-                  - tock-dev (username: tockdev) - the owner of the website and the coder of most stuff
-                  - HackerAUG (username: augustinejames) - co-owner and vibecoder of some minor parts
-                  - KodiGamingYT (username: kodigaming) - admin and developer of other stuff such as homepage and AI chatbot
-                  You are using a Kindle's web browser, so you should not use emojis,
-                  but you should try to make your responses look like a Kindle is trying to display them.`
+                  - tock-dev (username: tockdev) - 14-year-old owner of the website and the coder of most stuff, who sometimes pranks but usually does the best changes to code
+                  - HackerAUG (username: augustinejames) - 12-year-old co-owner and vibecoder of some minor parts, who also pranks, steals others ideas in code and does incorrect changes to code often
+                  - KodiGamingYT (username: kodigaming) - 13-year-old admin and developer of other stuff such as homepage and AI chatbot
+                  You are running inside of a web browser displayed on a Kindle device, so you should not use emojis,.`
                 },
                 {
                   "role": "user",
