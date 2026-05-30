@@ -268,6 +268,36 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+app.post('/api/change-password', authenticateToken, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  try {
+    const user = req.user;
+    const result = await db.query('SELECT * FROM users WHERE username = $1;', [
+      user.username,
+    ]);
+    const dbUser = result.rows[0];
+    if (
+      !dbUser ||
+      !(await bcrypt.compare(currentPassword, dbUser.password_hash))
+    ) {
+      log(`Password change REJECTED for ${user.username}`);
+      return res.status(401).json({
+        error: 'Rejected. Incorrect current password or user does not exist.',
+      });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password_hash = $1 WHERE username = $2;', [
+      hash,
+      user.username,
+    ]);
+    log(`Password change SUCCESS: ${user.username}`);
+    res.json({ success: true });
+  } catch (err) {
+    log('Password change logic breakdown:', err.message);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 app.get('/api/profile/:username', authenticateToken, async (req, res) => {
   const targetUsername = sanitizeUsername(req.params.username);
   const r = await db.query(
