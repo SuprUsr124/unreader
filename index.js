@@ -61,6 +61,7 @@ async function initDatabase() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_moderator BOOLEAN DEFAULT false;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT false;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS roles TEXT NOT NULL DEFAULT '[]';
 
       CREATE TABLE IF NOT EXISTS mod_logs (
         id SERIAL PRIMARY KEY, mod_username TEXT NOT NULL, action_type TEXT NOT NULL,
@@ -118,7 +119,7 @@ async function initDatabase() {
         role TEXT PRIMARY KEY,
         prefix TEXT NOT NULL,
         style TEXT NOT NULL,
-        priority INTEGER NOT NULL DEFAULT 0,
+        priority INTEGER NOT NULL DEFAULT 0
       );
     `);
     /* INSERT INTO roles (role, prefix, style, priority) VALUES
