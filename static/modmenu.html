@@ -446,7 +446,7 @@
               </div>`;
               if (userRoles.role.role === 'admin') {
                 html += `<div style="border-top: 1px dotted var(--border-color); padding-top:8px; margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                <button class="retro-btn" onclick="setModeratorAction('${safeUsername}', ${!u.is_moderator})">${u.is_moderator ? 'REMOVE MOD ROLE' : 'PROMOTE TO MOD'}</button>
+                <button class="retro-btn" onclick="setModeratorAction('${safeUsername}', ${!u.roles.includes('moderator')})">${u.roles.includes('moderator') ? 'REMOVE MOD ROLE' : 'PROMOTE TO MOD'}</button>
                 <button class="retro-btn danger-btn" onclick="adminAction('mod_ban', '${safeUsername}')">BAN USER</button>
                 <button class="retro-btn" onclick="adminAction('mod_pardon', '${safeUsername}')">PARDON USER</button>
                 <button class="retro-btn danger-btn" onclick="banIP('${safeUsername}')">BAN IP</button>
