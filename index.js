@@ -156,9 +156,9 @@ app.set('trust proxy', true);
 app.use(cors());
 app.use(express.json());
 
-const getUserRolesCache = {};
+// const getUserRolesCache = {};
 async function getUserRoles(username) {
-  if (getUserRolesCache[username]) return getUserRolesCache[username];
+  // if (getUserRolesCache[username]) return getUserRolesCache[username];
   const r = await db.query(
     'SELECT roles, timeout_until, is_banned, last_ip FROM users WHERE username = $1;',
     [username],
@@ -185,7 +185,7 @@ async function getUserRoles(username) {
   }
   delete res.roles;
 
-  getUserRolesCache[username] = res;
+  // getUserRolesCache[username] = res;
   return res;
 }
 
@@ -735,16 +735,21 @@ wss.on('connection', (ws, req) => {
 
         const isOwner = owner === authUser;
         const canUndo =
-          userRoles.role === 'admin' ||
-          (userRoles.role === 'moderator' && targetObj.deleted_by === authUser);
+          userRoles.role.role === 'admin' ||
+          (userRoles.role.role === 'moderator' &&
+            targetObj.deleted_by === authUser);
         const canDelete =
           isOwner ||
-          userRoles.role === 'admin' ||
-          userRoles.role === 'moderator';
+          userRoles.role.role === 'admin' ||
+          userRoles.role.role === 'moderator';
 
         // Deletes
         if (data.type === 'mod_delete' && canDelete) {
-          const reason = sanitize(data.reason || 'No reason provided');
+          const reason =
+            data.reason ||
+            (userRoles.role.role === 'admin'
+              ? "Admin doesn't need any reasons"
+              : sanitize('No reason provided'));
           log(
             `EXECUTING DATA PURGE: targetId=${data.id} in ${targetTable} by=${authUser}`,
           );
@@ -753,9 +758,8 @@ wss.on('connection', (ws, req) => {
             [authUser, data.id],
           );
           if (
-            !isOwner &&
-            userRoles.role === 'moderator' &&
-            userRoles.role !== 'admin'
+            userRoles.role.role === 'moderator' ||
+            userRoles.role.role === 'admin'
           ) {
             await db.query(
               'INSERT INTO mod_logs (mod_username, action_type, target_username, target_id, reason, timestamp) VALUES ($1, $2, $3, $4, $5, $6);',
@@ -781,12 +785,15 @@ wss.on('connection', (ws, req) => {
       }
 
       // Moderating users
-      if (userRoles.role === 'admin' || userRoles.role === 'moderator') {
+      if (
+        userRoles.role.role === 'admin' ||
+        userRoles.role.role === 'moderator'
+      ) {
         // Timeouts
         if (data.type === 'mod_timeout') {
           const target = sanitizeUsername(data.target);
           const targetRoles = await getUserRoles(target);
-          if (targetRoles.role === 'admin')
+          if (targetRoles.role.role === 'admin')
             return ws.send(
               JSON.stringify({
                 type: 'error_alert',
@@ -798,9 +805,10 @@ wss.on('connection', (ws, req) => {
             43200,
           ); // Max 30 days
           const reason =
-            userRoles.role === 'admin'
+            data.reason ||
+            (userRoles.role.role === 'admin'
               ? "Admin doesn't need any reasons"
-              : sanitize(data.reason || 'No reason provided');
+              : sanitize('No reason provided'));
           log(
             `USER TIMEOUT: target=${target}, duration=${duration}m, by=${authUser}`,
           );
@@ -828,16 +836,17 @@ wss.on('connection', (ws, req) => {
             return log(`KICK TARGET ${data.target} NOT CONNECTED`, data.target);
           const targetRoles = await getUserRoles(data.target);
           if (
-            userRoles.role === 'admin' ||
-            (userRoles.role === 'moderator' &&
-              targetRoles.role !== 'admin' &&
+            userRoles.role.role === 'admin' ||
+            (userRoles.role.role === 'moderator' &&
+              targetRoles.role.role !== 'admin' &&
               data.target !== authUser)
           ) {
             const client = activeClients.get(data.target);
             const reason =
-              userRoles.role === 'admin'
+              data.reason ||
+              (userRoles.role.role === 'admin'
                 ? "Admin doesn't need any reasons"
-                : sanitize(data.reason || 'No reason provided');
+                : sanitize('No reason provided'));
             client.ws.send(
               JSON.stringify({
                 type: 'terminated',
@@ -853,14 +862,11 @@ wss.on('connection', (ws, req) => {
             );
           }
         }
-        if (userRoles.role === 'admin') {
+        if (userRoles.role.role === 'admin') {
           // Bans
           if (data.type === 'mod_ban') {
             const target = sanitizeUsername(data.target);
-            const reason =
-              userRoles.role === 'admin'
-                ? "Admin doesn't need any reasons"
-                : sanitize(data.reason || 'No reason provided');
+            const reason = "Admin doesn't need any reasons";
             log(`ADMIN BAN: target=${target}, by=${authUser}`);
             await db.query(
               'UPDATE users SET is_banned = true WHERE username = $1;',
