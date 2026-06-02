@@ -31,6 +31,28 @@ function sanitizeUsername(username) {
   return username.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32);
 }
 
+// Check if a user is an admin or a bot to block mod actions against them
+async function isTargetProtected(username) {
+  try {
+    const res = await db.query(
+      'SELECT roles, is_bot FROM users WHERE username = $1;', 
+      [username]
+    );
+    if (res.rowCount === 0) return false;
+
+    const user = res.rows[0];
+    const roles = JSON.parse(user.roles || '[]');
+    
+    if (user.is_bot || roles.includes('admin')) {
+      return true;
+    }
+    return false;
+  } catch (err) {
+    log('Error checking protected user status:', err);
+    return true; // Safety fallback
+  }
+}
+
 let connectionString =
   process.env.DATABASE_URL ||
   'postgresql://postgres:postgres@localhost:5432/unreader';
@@ -215,6 +237,21 @@ app.post('/api/admin/ban-ip', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Missing target IP address.' });
     }
 
+    // Protection Guard: Block banning the IP if it's tied to an active admin or bot
+    const checkProtectedIp = await db.query(
+      `SELECT username, roles, is_bot FROM users WHERE last_ip = $1;`,
+      [ip]
+    );
+
+    for (const row of checkProtectedIp.rows) {
+      const roles = JSON.parse(row.roles || '[]');
+      if (row.is_bot || roles.includes('admin')) {
+        return res.status(400).json({ 
+          error: `Operation Denied: This IP address is currently used by a protected account (@${row.username}).` 
+        });
+      }
+    }
+
     await db.query(
       `INSERT INTO banned_ips (ip, banned_by, reason, timestamp) 
        VALUES ($1, $2, $3, $4) ON CONFLICT (ip) DO NOTHING;`,
@@ -259,5 +296,106 @@ function broadcastSystemUpdate(payloadObj, filterFn = null) {
   }
 }
 
+// WEBSOCKET SERVER BACKEND HOOKS
+const wss = new WebSocketServer({ noServer: true });
+
+wss.on('connection', (ws, req) => {
+  let authenticatedUser = null;
+
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+
+      if (data.type === 'auth') {
+        const decoded = jwt.verify(data.token, JWT_SECRET);
+        authenticatedUser = decoded.username;
+        const roles = await getUserRoles(authenticatedUser);
+        
+        // Save connection state
+        activeClients.set(authenticatedUser, {
+          ws: ws,
+          lastIp: req.socket.remoteAddress,
+          role: roles.role
+        });
+        
+        ws.send(JSON.stringify({ type: 'topics_update', user_roles: roles }));
+        return;
+      }
+
+      // Ensure the client is authorized via WS link before executing administrative commands
+      if (!authenticatedUser) return;
+      const modRoles = await getUserRoles(authenticatedUser);
+      const isModOrAdmin = ['moderator', 'admin'].includes(modRoles.role.role);
+
+      if (data.type === 'mod_timeout' && isModOrAdmin) {
+        const targetUser = data.target;
+
+        // Protection Guard: Block timing out bots and admins
+        if (await isTargetProtected(targetUser)) {
+          return ws.send(JSON.stringify({ 
+            type: 'error_alert', 
+            message: 'Operation Denied: Admins and Bots cannot be timed out.' 
+          }));
+        }
+
+        const durationMs = parseInt(data.duration || 60) * 60 * 1000;
+        const timeoutUntil = Date.now() + durationMs;
+
+        await db.query('UPDATE users SET timeout_until = $1 WHERE username = $2;', [timeoutUntil, targetUser]);
+        await db.query(
+          `INSERT INTO mod_logs (mod_username, action_type, target_username, reason, timestamp) 
+           VALUES ($1, $2, $3, $4, $5);`,
+          [authenticatedUser, 'timeout', targetUser, data.reason || 'No reason provided', Date.now()]
+        );
+
+        const targetClient = activeClients.get(targetUser);
+        if (targetClient && targetClient.ws) {
+          targetClient.ws.send(JSON.stringify({ type: 'terminated', reason: 'You have been temporarily timed out by a moderator.' }));
+        }
+        return;
+      }
+
+      if (data.type === 'mod_ban' && modRoles.role.role === 'admin') {
+        const targetUser = data.target;
+
+        // Protection Guard: Block banning bots and admins
+        if (await isTargetProtected(targetUser)) {
+          return ws.send(JSON.stringify({ 
+            type: 'error_alert', 
+            message: 'Operation Denied: Admins and Bots cannot be banned.' 
+          }));
+        }
+
+        await db.query('UPDATE users SET is_banned = true WHERE username = $1;', [targetUser]);
+        await db.query(
+          `INSERT INTO mod_logs (mod_username, action_type, target_username, reason, timestamp) 
+           VALUES ($1, $2, $3, $4, $5);`,
+          [authenticatedUser, 'ban', targetUser, 'Administrative Account Terminated', Date.now()]
+        );
+
+        const targetClient = activeClients.get(targetUser);
+        if (targetClient && targetClient.ws) {
+          targetClient.ws.send(JSON.stringify({ type: 'terminated', reason: 'Your account profile has been permanently banned.' }));
+        }
+        return;
+      }
+
+    } catch (err) {
+      log('WebSocket messaging handling engine failure:', err.message);
+    }
+  });
+
+  ws.on('close', () => {
+    if (authenticatedUser) activeClients.delete(authenticatedUser);
+  });
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => log(`Server parsing engine listening on port ${PORT}`));
+const server = app.listen(PORT, () => log(`Server parsing engine listening on port ${PORT}`));
+
+// Attach WebSockets into our single instance HTTP listener
+server.on('upgrade', (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
+});
