@@ -432,7 +432,7 @@
 
               var html = `<div style="line-height: 1.5;">
               <strong>Username:</strong> ${safeUsername}<br>
-              <strong>Last IP:</strong> ${safeIP}<br>
+              <strong>Last IP:</strong> <span id="target-user-ip">${safeIP}</span><br>
               <strong>Status:</strong> ${safeStatus}<br>
               <strong>Roles:</strong> ${u.roles.map((r) => r.toUpperCase()).join(', ')}<br>`;
               if (u.alts && u.alts.length > 0) {
@@ -517,7 +517,15 @@
       }
 
       async function banIP(targetUser) {
-        if (!userRoles.role.role === 'admin') return await unAlert('Only admins can ban IPs.');
+        if (userRoles.role.role !== 'admin') return await unAlert('Only admins can ban IPs.');
+        
+        var targetIP = document.getElementById('target-user-ip')?.textContent;
+        if (!targetIP || targetIP === 'Unknown') {
+          return await unAlert('Cannot ban an unknown or missing IP address.');
+        }
+
+        var reason = await unPrompt('Reason for IP ban?');
+
         var xhr = new XMLHttpRequest();
         xhr.open('POST', BACKEND_URL + '/api/admin/ban-ip', true);
         xhr.setRequestHeader('Content-Type', 'application/json');
@@ -525,7 +533,7 @@
         xhr.onreadystatechange = async function () {
           if (xhr.readyState === 4) {
             if (xhr.status === 200) {
-              await unAlert('IP ban successful for ' + targetUser);
+              await unAlert('IP ban successful for ' + targetUser + ' (' + targetIP + ')');
               searchUserAction();
               openModLogs();
             } else {
@@ -533,7 +541,7 @@
             }
           }
         };
-        xhr.send(JSON.stringify({ username: targetUser }));
+        xhr.send(JSON.stringify({ ip: targetIP, reason: reason || 'No reason provided' }));
       }
 
       (async function () {
