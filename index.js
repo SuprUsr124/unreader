@@ -123,6 +123,13 @@ async function initDatabase() {
         priority INTEGER NOT NULL DEFAULT 0
       );
       ALTER TABLE roles ADD COLUMN IF NOT EXISTS class TEXT;
+
+      CREATE TABLE IF NOT EXISTS banned_ips (
+        ip TEXT PRIMARY KEY,
+        banned_by TEXT NOT NULL,
+        reason TEXT,
+        timestamp BIGINT NOT NULL
+      );
     `);
     /* INSERT INTO roles (role, prefix, style, priority) VALUES
       ('admin', 'ADMIN', 'background: black !important;color: white !important;border: 3px solid black !important;box-shadow: 4px 4px 0px #0000004a !important;', 1000),
@@ -155,6 +162,25 @@ app.set('trust proxy', true);
 }) */
 app.use(cors());
 app.use(express.json());
+
+async function blockBannedIPs(req, res, next) {
+  try {
+    const clientIp = req.ip;
+    const check = await db.query('SELECT 1 FROM banned_ips WHERE ip = $1;', [
+      clientIp,
+    ]);
+    if (check.rowCount > 0) {
+      return res
+        .status(403)
+        .json({ error: 'Your IP address has been banned.' });
+    }
+    next();
+  } catch (err) {
+    log('IP validation middleware error:', err);
+    next();
+  }
+}
+app.use(blockBannedIPs);
 
 // const getUserRolesCache = {};
 async function getUserRoles(username) {
@@ -204,7 +230,8 @@ async function authenticateToken(req, res, next) {
   }
 }
 
-const activeClients = new Map(); // { username: { ws, mode, target } }
+// { username: { ws, mode, target, lastIp } }
+const activeClients = new Map();
 
 function broadcastSystemUpdate(payloadObj, filterFn = null) {
   const msgStr = JSON.stringify(payloadObj);
@@ -457,6 +484,83 @@ app.post('/api/admin/set-role', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
+app.post('/api/admin/ban-ip', authenticateToken, async (req, res) => {
+  try {
+    if (req?.user?.role?.role !== 'admin') {
+      return res
+        .status(403)
+        .json({ error: 'Forbidden: Requires administrator privileges.' });
+    }
+
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ error: 'Missing target IP address.' });
+    }
+
+    const reason = "Admin doesn't need any reasons";
+
+    const r = await db.query('SELECT last_ip FROM users WHERE username = $1;', [
+      username,
+    ]);
+    const ip = r.rows[0]?.last_ip;
+    if (!ip) {
+      return res.status(400).json({ error: 'Missing target IP address.' });
+    }
+
+    const checkProtectedIp = await db.query(
+      `SELECT username, roles, is_bot FROM users WHERE last_ip = $1;`,
+      [ip],
+    );
+
+    for (const row of checkProtectedIp.rows) {
+      const roles = JSON.parse(row.roles || '[]');
+      if (row.is_bot || roles.includes('admin')) {
+        return res.status(400).json({
+          error: `Operation Denied: This IP address is currently used by a protected account (@${row.username}).`,
+        });
+      }
+    }
+
+    await db.query(
+      `INSERT INTO banned_ips (ip, banned_by, reason, timestamp) 
+       VALUES ($1, $2, $3, $4) ON CONFLICT (ip) DO NOTHING;`,
+      [ip, req.user.username, reason, Date.now()],
+    );
+
+    await db.query(
+      `INSERT INTO mod_logs (mod_username, action_type, target_username, reason, timestamp) 
+       VALUES ($1, $2, $3, $4, $5);`,
+      [req.user.username, 'ip ban', username, reason, Date.now()],
+    );
+
+    await db.query('UPDATE users SET is_banned = true WHERE last_ip = $1;', [
+      ip,
+    ]);
+
+    for (const [username, client] of activeClients.entries()) {
+      if (client.lastIp === ip) {
+        client.ws.send(
+          JSON.stringify({
+            type: 'terminate',
+            reason: 'Your IP address has been banned.',
+          }),
+        );
+        client.ws.close();
+        activeClients.delete(username);
+      }
+    }
+
+    log(`Blacklisted IP: ${ip} (${username})`);
+    return res.status(200).json({
+      success: true,
+      message: `IP ${ip} banned and corresponding sessions dropped.`,
+    });
+  } catch (err) {
+    log('Admin endpoint /ban-ip failure execution:', err);
+    return res.status(500).json({ error: 'Internal system server error.' });
+  }
+});
+
 app.get('/history', authenticateToken, async (req, res) => {
   const off = Math.max(0, parseInt(req.query.index ?? '0', 10) * 10);
   const r = await db.query(
@@ -534,6 +638,11 @@ const server = app.listen(process.env.PORT || 10000, '0.0.0.0', () =>
   log(`Node strictly bound to port: ${process.env.PORT || 10000}`),
 );
 const wss = new WebSocketServer({ server });
+server.on('upgrade', (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
+});
 
 const ALLOWED_CHANNELS = {
   public: 'messages',
@@ -593,6 +702,7 @@ wss.on('connection', (ws, req) => {
             mode: 'public',
             target: '',
             userRoles: userRoles,
+            lastIp: req.socket.remoteAddress,
           });
           const topicsRes = await db.query(
             'SELECT * FROM topics ORDER BY id DESC;',
