@@ -31,28 +31,7 @@ function sanitizeUsername(username) {
   return username.replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 32);
 }
 
-// Security Check: Look up a target's core properties to prevent mod-abuse against admins and bots
-async function isTargetProtected(username) {
-  try {
-    const res = await db.query(
-      'SELECT roles, is_bot FROM users WHERE username = $1;',
-      [username],
-    );
-    if (res.rowCount === 0) return false;
-
-    const user = res.rows[0];
-    const roles = JSON.parse(user.roles || '[]');
-
-    if (user.is_bot || roles.includes('admin')) {
-      return true;
-    }
-    return false;
-  } catch (err) {
-    log('Error checking protected user status:', err);
-    return true; // Safe default
-  }
-}
-
+// CORRECT RELEASE URL
 let connectionString =
   process.env.DATABASE_URL ||
   'postgresql://postgres:postgres@localhost:5432/unreader';
@@ -152,10 +131,6 @@ async function initDatabase() {
         timestamp BIGINT NOT NULL
       );
     `);
-    /* INSERT INTO roles (role, prefix, style, priority) VALUES
-      ('admin', 'ADMIN', 'background: black !important;color: white !important;border: 3px solid black !important;box-shadow: 4px 4px 0px #0000004a !important;', 1000),
-      ('moderator', 'MOD', 'border: 3px solid #0000ff !important;box-shadow: 4px 4px 0px #0000ff50 !important;', 50),
-      ('bot', 'BOT', 'border: 3px solid #808080 !important;box-shadow: 4px 4px 0px #80808050 !important;', 10) ON CONFLICT (role) DO NOTHING; */
     log('Structural migration successful.');
   } catch (err) {
     log('DB MIGRATION FAILURE:', err);
@@ -170,16 +145,13 @@ app.set('trust proxy', true);
 app.use(cors());
 app.use(express.json());
 
+// Middleware to catch and drop traffic from banned IPs
 async function blockBannedIPs(req, res, next) {
   try {
     const clientIp = req.ip;
-    const check = await db.query('SELECT 1 FROM banned_ips WHERE ip = $1;', [
-      clientIp,
-    ]);
+    const check = await db.query('SELECT 1 FROM banned_ips WHERE ip = $1;', [clientIp]);
     if (check.rowCount > 0) {
-      return res
-        .status(403)
-        .json({ error: 'Your IP address has been banned.' });
+      return res.status(403).json({ error: 'Your IP address has been banned.' });
     }
     next();
   } catch (err) {
@@ -189,9 +161,7 @@ async function blockBannedIPs(req, res, next) {
 }
 app.use(blockBannedIPs);
 
-// const getUserRolesCache = {};
 async function getUserRoles(username) {
-  // if (getUserRolesCache[username]) return getUserRolesCache[username];
   const r = await db.query(
     'SELECT roles, timeout_until, is_banned, last_ip FROM users WHERE username = $1;',
     [username],
@@ -217,8 +187,6 @@ async function getUserRoles(username) {
     delete res.role.priority;
   }
   delete res.roles;
-
-  // getUserRolesCache[username] = res;
   return res;
 }
 
@@ -237,16 +205,11 @@ async function authenticateToken(req, res, next) {
   }
 }
 
-// ==========================================
-// EXPRESS HTTP API ROUTES (REGISTERED FIRST)
-// ==========================================
-
+// ADMIN ENDPOINTS
 app.post('/api/admin/ban-ip', authenticateToken, async (req, res) => {
   try {
     if (!req.user || !req.user.role || req.user.role.role !== 'admin') {
-      return res
-        .status(403)
-        .json({ error: 'Forbidden: Requires administrator privileges.' });
+      return res.status(403).json({ error: 'Forbidden: Requires administrator privileges.' });
     }
 
     const { ip, reason } = req.body;
@@ -254,302 +217,54 @@ app.post('/api/admin/ban-ip', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Missing target IP address.' });
     }
 
-    // Protection Check: Ensure this target IP is not shared by an admin or bot account
-    const checkProtectedIp = await db.query(
-      `SELECT username, roles, is_bot FROM users WHERE last_ip = $1;`,
-      [ip],
-    );
-
-    for (const row of checkProtectedIp.rows) {
-      const roles = JSON.parse(row.roles || '[]');
-      if (row.is_bot || roles.includes('admin')) {
-        return res.status(400).json({
-          error: `Operation Denied: This IP footprint is linked to a protected account (@${row.username}).`,
-        });
-      }
-    }
-
-    // Insert into banned network arrays
+    // Add IP to the persistent blocklist
     await db.query(
       `INSERT INTO banned_ips (ip, banned_by, reason, timestamp) 
        VALUES ($1, $2, $3, $4) ON CONFLICT (ip) DO NOTHING;`,
-      [ip, req.user.username, reason || 'No reason provided', Date.now()],
+      [ip, req.user.username, reason || 'No reason provided', Date.now()]
     );
 
+    // Save action log to mod history
     await db.query(
       `INSERT INTO mod_logs (mod_username, action_type, target_username, reason, timestamp) 
        VALUES ($1, $2, $3, $4, $5);`,
-      [
-        req.user.username,
-        'IP_BAN',
-        ip,
-        reason || 'No reason provided',
-        Date.now(),
-      ],
+      [req.user.username, 'IP_BAN', ip, reason || 'No reason provided', Date.now()]
     );
 
-    await db.query('UPDATE users SET is_banned = true WHERE last_ip = $1;', [
-      ip,
-    ]);
+    // Hard-ban any local users attached to this matching registration footprint
+    await db.query('UPDATE users SET is_banned = true WHERE last_ip = $1;', [ip]);
 
-    // Sever corresponding WebSocket instances instantly
+    // Force disconnect active socket connections linked to this IP footprint
     for (const [username, client] of activeClients.entries()) {
       if (client.lastIp === ip && client.ws) {
-        client.ws.send(
-          JSON.stringify({
-            type: 'SYSTEM_ALERT',
-            message: 'Your network has been blacklisted.',
-          }),
-        );
+        client.ws.send(JSON.stringify({ type: 'SYSTEM_ALERT', message: 'Your network has been banned.' }));
         client.ws.close(4003, 'IP Banned');
         activeClients.delete(username);
       }
     }
 
     log(`Administrator "${req.user.username}" blacklisted IP: ${ip}`);
-    return res.status(200).json({
-      success: true,
-      message: `IP ${ip} banned and corresponding sessions dropped.`,
-    });
+    return res.status(200).json({ success: true, message: `IP ${ip} banned and corresponding sessions dropped.` });
+
   } catch (err) {
     log('Admin endpoint /ban-ip failure execution:', err);
     return res.status(500).json({ error: 'Internal system server error.' });
   }
 });
 
-app.get(
-  '/api/admin/find-user/:username',
-  authenticateToken,
-  async (req, res) => {
-    try {
-      if (
-        !req.user ||
-        !req.user.role ||
-        !['moderator', 'admin'].includes(req.user.role.role)
-      ) {
-        return res.status(403).json({ error: 'Unauthorized profile search' });
-      }
-      const target = sanitizeUsername(req.params.username);
-      const uQuery = await db.query(
-        'SELECT username, roles, last_ip, is_banned, timeout_until FROM users WHERE username = $1;',
-        [target],
-      );
-      if (uQuery.rowCount === 0)
-        return res.status(404).json({ error: 'Not found' });
-
-      const u = uQuery.rows[0];
-      u.roles = JSON.parse(u.roles);
-      return res.status(200).json(u);
-    } catch (err) {
-      return res.status(500).json({ error: 'Internal database query failure' });
-    }
-  },
-);
-
-app.get('/api/mod-logs', authenticateToken, async (req, res) => {
-  try {
-    if (
-      !req.user ||
-      !req.user.role ||
-      !['moderator', 'admin'].includes(req.user.role.role)
-    ) {
-      return res.status(403).json({ error: 'Unauthorized log view access' });
-    }
-    const logs = await db.query(
-      'SELECT * FROM mod_logs ORDER BY timestamp DESC LIMIT 100;',
-    );
-    return res.status(200).json(logs.rows);
-  } catch (err) {
-    return res.status(500).json({ error: 'Internal log fetch failure' });
-  }
-});
-
-app.post('/api/admin/set-role', authenticateToken, async (req, res) => {
-  try {
-    if (!req.user || !req.user.role || req.user.role.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    const { target, is_moderator } = req.body;
-    const cleanTarget = sanitizeUsername(target);
-
-    const targetRoles = is_moderator ? '["moderator"]' : '[]';
-    await db.query('UPDATE users SET roles = $1 WHERE username = $2;', [
-      targetRoles,
-      cleanTarget,
-    ]);
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ error: 'Role modification error' });
-  }
-});
-
-const activeClients = new Map();
+const activeClients = new Map(); // { username: { ws, mode, target, lastIp } }
 
 function broadcastSystemUpdate(payloadObj, filterFn = null) {
-  const msgStr = JSON.stringify(payloadObj);
-  activeClients.forEach((client, username) => {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      if (!filterFn || filterFn(client)) {
-        client.ws.send(msgStr);
+  const payload = JSON.stringify(payloadObj);
+  for (const [username, client] of activeClients.entries()) {
+    if (client.ws && client.ws.readyState === WebSocket.OPEN) {
+      if (!filterFn || filterFn(username, client)) {
+        client.ws.send(payload);
       }
-    } else {
-      log(`Pruning inactive connection: ${username}`);
-      activeClients.delete(username);
     }
-  });
+  }
 }
 
-function getRosterPayload() {
-  const users = [];
-  activeClients.forEach((c, username) => {
-    users.push({
-      username: username,
-      mode: c.mode || 'public',
-      target: c.target || '',
-      userRoles: c.userRoles,
-    });
-  });
-  return { type: 'roster_update', users };
-}
-
-// ==========================================
-// SERVER SPIN-UP & MAIN BINDINGS
-// ==========================================
+// HTTP Server Initialization
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () =>
-  log(`Server parsing engine listening on port ${PORT}`),
-);
-
-// ==========================================
-// WEBSOCKET ROUTING ENGINE LAYER
-// ==========================================
-const wss = new WebSocketServer({ noServer: true });
-
-wss.on('connection', (ws, req) => {
-  let authenticatedUser = null;
-
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(message);
-
-      if (data.type === 'auth') {
-        const decoded = jwt.verify(data.token, JWT_SECRET);
-        authenticatedUser = decoded.username;
-        const roles = await getUserRoles(authenticatedUser);
-
-        activeClients.set(authenticatedUser, {
-          ws: ws,
-          lastIp: req.socket.remoteAddress,
-          role: roles.role,
-        });
-
-        ws.send(JSON.stringify({ type: 'topics_update', user_roles: roles }));
-        broadcastSystemUpdate(getRosterPayload());
-        return;
-      }
-
-      if (!authenticatedUser) return;
-      const modRoles = await getUserRoles(authenticatedUser);
-      const isModOrAdmin = ['moderator', 'admin'].includes(modRoles.role.role);
-
-      // Handle Mod Timeout Command
-      if (data.type === 'mod_timeout' && isModOrAdmin) {
-        const targetUser = data.target;
-
-        if (await isTargetProtected(targetUser)) {
-          return ws.send(
-            JSON.stringify({
-              type: 'error_alert',
-              message: 'Operation Denied: Admins and Bots cannot be timed out.',
-            }),
-          );
-        }
-
-        const durationMs = parseInt(data.duration || 60) * 60 * 1000;
-        const timeoutUntil = Date.now() + durationMs;
-
-        await db.query(
-          'UPDATE users SET timeout_until = $1 WHERE username = $2;',
-          [timeoutUntil, targetUser],
-        );
-        await db.query(
-          `INSERT INTO mod_logs (mod_username, action_type, target_username, reason, timestamp) 
-           VALUES ($1, $2, $3, $4, $5);`,
-          [
-            authenticatedUser,
-            'timeout',
-            targetUser,
-            data.reason || 'No reason provided',
-            Date.now(),
-          ],
-        );
-
-        const targetClient = activeClients.get(targetUser);
-        if (targetClient && targetClient.ws) {
-          targetClient.ws.send(
-            JSON.stringify({
-              type: 'terminated',
-              reason: 'You have been temporarily timed out by a moderator.',
-            }),
-          );
-        }
-        return;
-      }
-
-      // Handle Admin Ban Account Command
-      if (data.type === 'mod_ban' && modRoles.role.role === 'admin') {
-        const targetUser = data.target;
-
-        if (await isTargetProtected(targetUser)) {
-          return ws.send(
-            JSON.stringify({
-              type: 'error_alert',
-              message:
-                'Operation Denied: Admins and Bots cannot be permanently banned.',
-            }),
-          );
-        }
-
-        await db.query(
-          'UPDATE users SET is_banned = true WHERE username = $1;',
-          [targetUser],
-        );
-        await db.query(
-          `INSERT INTO mod_logs (mod_username, action_type, target_username, reason, timestamp) 
-           VALUES ($1, $2, $3, $4, $5);`,
-          [
-            authenticatedUser,
-            'ban',
-            targetUser,
-            'Administrative Account Terminated',
-            Date.now(),
-          ],
-        );
-
-        const targetClient = activeClients.get(targetUser);
-        if (targetClient && targetClient.ws) {
-          targetClient.ws.send(
-            JSON.stringify({
-              type: 'terminated',
-              reason: 'Your account profile has been permanently banned.',
-            }),
-          );
-        }
-        return;
-      }
-    } catch (err) {
-      log('WebSocket handling engine failure:', err.message);
-    }
-  });
-
-  ws.on('close', () => {
-    if (authenticatedUser) activeClients.delete(authenticatedUser);
-  });
-});
-
-// Capture upgrade handshake requests and hand off to WebSocketServer
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
-});
+      
