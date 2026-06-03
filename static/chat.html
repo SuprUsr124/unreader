@@ -448,7 +448,7 @@
             if (data.user_roles) {
               userRoles = data.user_roles;
               log("Roles updated:", userRoles);
-              if (userRoles.role.role && userRoles.role.role==='admin' || userRoles.role.role==='moderator') {
+              if (userRoles.role.role && (userRoles.role.role==='admin' || userRoles.role.role==='moderator')) {
                 document.querySelector('#mod-toggle-container').style.display = "flex";
                 localStorage.setItem("unreader-rank", "mod");
               } else {

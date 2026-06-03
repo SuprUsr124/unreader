@@ -624,7 +624,12 @@
           name: 'Ko-Fi',
           url: 'https://ko-fi.com/tockdev',
         }, */
-        { id: 'modmenu', name: 'Moderation', url: 'modmenu.html' },
+        {
+          id: 'modmenu',
+          name: 'Moderation',
+          url: 'modmenu.html',
+          requirement: { rank: 'mod' },
+        },
         {
           id: 'settings_app',
           name: 'Settings',
@@ -641,8 +646,14 @@
 
         APP_DATABASE.forEach((app) => {
           log('building app: ', app.name);
-          if (app.id === 'modmenu' && currentRank !== 'mod') {
-            return;
+          if (app.requirement) {
+            const requirement = app.requirement;
+            if (requirement.rank) {
+              const requiredRank = requirement.rank;
+              if (currentRank !== requiredRank) {
+                return;
+              }
+            }
           }
 
           const itemEl = document.createElement('div');
